@@ -2,7 +2,9 @@
 
 Private pipeline: StringTie GTFs → official `prepDE.py` → one-to-one ENSG counts → DESeq2.
 
-Production DGE is **pairwise** (`~ individual + treatment`), gene filter **≥5 counts in ≥3 samples within the contrast**, NAs filled with **0**.
+Production DGE is **pairwise only**: one DESeq2 fit per contrast (e.g. 2.5 mM vs 8 mM on those samples alone; a separate fit for 30 mM vs 8 mM). Design is `~ individual + treatment`, gene filter **≥5 counts in ≥3 samples within the contrast**, NAs filled with **0**.
+
+`--mode multi` is an optional comparison (all three levels of an axis in one fit, which is what Dylan used). It is **not** the Drive / paper analysis.
 
 ## Layout
 
@@ -10,7 +12,7 @@ Production DGE is **pairwise** (`~ individual + treatment`), gene filter **≥5 
 scripts/prepDE.py            official StringTie helper (not ours)
 scripts/process_stringtie.sh copy GTFs from Unity, run prepDE
 scripts/prepare_counts.py    stack species, collapse orthologs, TPM sample filter, NA mask
-scripts/run_deseq2.R         pairwise or multi-level DESeq2
+scripts/run_deseq2.R         DESeq2 (default `--mode pairwise`)
 scripts/validate.py          ortholog-merge sanity checks
 ```
 
@@ -67,7 +69,9 @@ Rscript scripts/run_deseq2.R \
 
 On the production glucose contrasts, **all three modes give identical DEG lists** (Jaccard = 1). Every NA is species-wide (the gene is NA in all samples of that contrast), so those genes already fail the ≥5-in-≥3 filter after `fill0`. There were **zero mixed-NA genes** (NA in some samples but not others). See `results/na_treatment_deseq.csv`.
 
-### Multi-level model (all glucose/hypoxia/temperature levels in one fit)
+### Optional: three-level (multi) model
+
+Not production. Fits 2.5 / 8 / 30 mM together (or the three hypoxia / temperature levels), then extracts the two contrasts. Dylan’s DESeq used this form.
 
 ```bash
 Rscript scripts/run_deseq2.R --counts ... --outdir ... --mode multi --na fill0
