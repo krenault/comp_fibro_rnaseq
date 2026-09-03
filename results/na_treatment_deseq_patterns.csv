@@ -1,0 +1,11 @@
+species,contrast,n_samples,n_genes_any_NA,n_genes_all_NA,n_genes_mixed_NA
+human,2.5mM_vs_8mM,10,111,111,0
+human,30mM_vs_8mM,10,111,111,0
+rat,2.5mM_vs_8mM,8,44311,44311,0
+rat,30mM_vs_8mM,8,44311,44311,0
+squirrel,2.5mM_vs_8mM,10,44551,44551,0
+squirrel,30mM_vs_8mM,10,44551,44551,0
+little_brown_bat,2.5mM_vs_8mM,10,46146,46146,0
+little_brown_bat,30mM_vs_8mM,10,46146,46146,0
+rousette,2.5mM_vs_8mM,10,44310,44310,0
+rousette,30mM_vs_8mM,10,44310,44310,0

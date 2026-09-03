@@ -1,0 +1,17 @@
+# Local data (count matrices are large; keep them out of git)
+.env
+DATA_DIR/
+*.csv
+!results/
+!results/*.csv
+
+# Runtime
+temp_gtfs/
+processing_log_*.txt
+.Rhistory
+.RData
+Rplots.pdf
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
