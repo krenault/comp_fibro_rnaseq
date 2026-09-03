@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
-# Copy StringTie GTFs from Unity (read-only) and run official prepDE.py.
-# Never modifies files on the cluster.
+# Copy StringTie GTFs from server and run official prepDE.py.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-: "${UNITY_HOST:=unity}"
-: "${UNITY_BASE:=/project/pi_rachel_daniels_uri_edu/flexible_homeostasis}"
+: "${HOST:=}"
+: "${BASE:=}"
 : "${DATA_DIR:?Set DATA_DIR to the local prepDE output directory}"
 : "${PREPDE:=$SCRIPT_DIR/prepDE.py}"
-: "${PREPDE_LENGTH:=75}"   # StringTie prepDE default; production Drive run omitted -l
+: "${PREPDE_LENGTH:=75}"   # StringTie prepDE default
 : "${SPECIES:=bactrian_camel bat dolphin dromedary_camel gelada honey_badger human rat rhino rousette seal squirrel whale}"
 : "${EXPERIMENTS:=glucose temperature hypoxia}"
 
@@ -36,7 +35,7 @@ normalize_sample() {
 
 process_one() {
   local species="$1" experiment="$2"
-  local remote="${UNITY_BASE}/${species}/stringtie_november2025_one2one"
+  local remote="${BASE}/${species}/stringtie_november2025_one2one"
   local out="${DATA_DIR}/${species}/${experiment}"
   local list="${out}/sample_list.txt"
   mkdir -p "$out"
@@ -45,7 +44,7 @@ process_one() {
   log "Processing ${species} / ${experiment}"
   local pat files file_count downloaded filename local_file sample
   pat="$(pattern_for "$experiment")"
-  files="$(ssh "$UNITY_HOST" "ls ${remote}/*.gtf 2>/dev/null | grep -iE '${pat}'" 2>/dev/null || true)"
+  files="$(ssh "$HOST" "ls ${remote}/*.gtf 2>/dev/null | grep -iE '${pat}'" 2>/dev/null || true)"
   if [[ -z "$files" ]]; then
     log "  no GTF files; skip"
     return 0
@@ -58,7 +57,7 @@ process_one() {
     filename="$(basename "$remote_file")"
     local_file="${TMP}/${filename}"
     sample="$(normalize_sample "$filename")"
-    if scp -q "${UNITY_HOST}:${remote_file}" "$local_file" 2>/dev/null; then
+    if scp -q "${HOST}:${remote_file}" "$local_file" 2>/dev/null; then
       printf "%s\t%s\n" "$sample" "$local_file" >> "$list"
       downloaded=$((downloaded + 1))
     else
@@ -77,10 +76,10 @@ process_one() {
   rm -rf "$TMP"; mkdir -p "$TMP"
 }
 
-log "Unity ${UNITY_HOST}:${UNITY_BASE}"
+log "Host ${HOST}:${BASE}"
 log "DATA_DIR=${DATA_DIR}  PREPDE_LENGTH=${PREPDE_LENGTH}"
-ssh -o ConnectTimeout=10 "$UNITY_HOST" "echo Connection_OK" >/dev/null
-log "Unity connection OK"
+ssh -o ConnectTimeout=10 "$HOST" "echo Connection_OK" >/dev/null
+log "Host connection OK"
 
 for species in $SPECIES; do
   for experiment in $EXPERIMENTS; do
