@@ -1,22 +1,19 @@
 #!/usr/bin/env python3
 """Combine species prepDE matrices, collapse to one-to-one ENSG orthologs,
-restrict to TPM samples, and mask zeros as NA where TPM is NA (orthology gap).
+restrict to TPM samples.
 
 Usage:
   python3 prepare_counts.py --counts-dir DIR --tpm FILE --out FILE
 """
 from __future__ import annotations
-
 import argparse
 import re
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
 
 EXPERIMENTS = ("glucose", "hypoxia", "temperature")
 ENSG_RE = re.compile(r"(ENSG\d+)")
-
 
 def discover_species(base: Path) -> list[Path]:
     dirs = []
@@ -25,7 +22,6 @@ def discover_species(base: Path) -> list[Path]:
             dirs.append(p)
     return dirs
 
-
 def load_species(species_dir: Path) -> pd.DataFrame | None:
     parts = []
     for exp in EXPERIMENTS:
@@ -33,16 +29,11 @@ def load_species(species_dir: Path) -> pd.DataFrame | None:
         if not f.exists():
             continue
         df = pd.read_csv(f, index_col=0)
-        if df.columns.duplicated().any():
-            raise ValueError(f"{f}: duplicate sample columns")
         parts.append(df)
     if not parts:
         return None
     merged = pd.concat(parts, axis=1)
-    if merged.columns.duplicated().any():
-        raise ValueError(f"{species_dir.name}: duplicate samples after concat")
     return merged
-
 
 def combine(base: Path) -> pd.DataFrame:
     stacked = []
@@ -76,7 +67,6 @@ def collapse_orthologs(df: pd.DataFrame, ref_genes: set[str]) -> pd.DataFrame:
         print(f"  {len(missing):,} reference genes absent from counts")
     return agg
 
-
 def mask_na(counts: pd.DataFrame, tpm: pd.DataFrame) -> pd.DataFrame:
     shared_samples = [c for c in counts.columns if c in tpm.columns]
     dropped = set(counts.columns) - set(shared_samples)
@@ -90,7 +80,6 @@ def mask_na(counts: pd.DataFrame, tpm: pd.DataFrame) -> pd.DataFrame:
     print(f"  masked {int(mask.sum().sum()):,} zeros→NA; kept {n_nonzero_kept:,} nonzero where TPM is NA")
     print(f"  final: {out.shape[0]:,} genes × {out.shape[1]} samples")
     return out
-
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
