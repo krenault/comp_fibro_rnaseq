@@ -2,8 +2,6 @@
 .env
 DATA_DIR/
 *.csv
-!results/
-!results/*.csv
 
 # Runtime
 temp_gtfs/

@@ -9,7 +9,6 @@ from __future__ import annotations
 import argparse
 import re
 from pathlib import Path
-import numpy as np
 import pandas as pd
 
 EXPERIMENTS = ("glucose", "hypoxia", "temperature")
@@ -32,8 +31,7 @@ def load_species(species_dir: Path) -> pd.DataFrame | None:
         parts.append(df)
     if not parts:
         return None
-    merged = pd.concat(parts, axis=1)
-    return merged
+    return pd.concat(parts, axis=1)
 
 def combine(base: Path) -> pd.DataFrame:
     stacked = []
@@ -67,19 +65,16 @@ def collapse_orthologs(df: pd.DataFrame, ref_genes: set[str]) -> pd.DataFrame:
         print(f"  {len(missing):,} reference genes absent from counts")
     return agg
 
-def mask_na(counts: pd.DataFrame, tpm: pd.DataFrame) -> pd.DataFrame:
-    shared_samples = [c for c in counts.columns if c in tpm.columns]
-    dropped = set(counts.columns) - set(shared_samples)
+
+def filter_samples(counts: pd.DataFrame, tpm: pd.DataFrame) -> pd.DataFrame:
+    shared = [c for c in counts.columns if c in tpm.columns]
+    dropped = set(counts.columns) - set(shared)
     if dropped:
         print(f"  dropping {len(dropped)} count samples not in TPM")
-    counts = counts[shared_samples].astype(float)
-    tpm = tpm.reindex(index=counts.index, columns=shared_samples)
-    mask = tpm.isna() & (counts == 0)
-    n_nonzero_kept = int((tpm.isna() & (counts > 0)).sum().sum())
-    out = counts.where(~mask, np.nan)
-    print(f"  masked {int(mask.sum().sum()):,} zeros→NA; kept {n_nonzero_kept:,} nonzero where TPM is NA")
+    out = counts[shared]
     print(f"  final: {out.shape[0]:,} genes × {out.shape[1]} samples")
     return out
+
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
@@ -98,9 +93,9 @@ def main() -> None:
     print(f"  {len(ref):,} orthologs in TPM")
     one2one = collapse_orthologs(combined, ref)
 
-    print("3. filter samples to TPM and mask orthology NAs")
+    print("3. keep samples present in TPM")
     tpm = pd.read_csv(args.tpm, index_col=0)
-    final = mask_na(one2one, tpm)
+    final = filter_samples(one2one, tpm)
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     final.to_csv(args.out)

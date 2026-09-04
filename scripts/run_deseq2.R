@@ -2,19 +2,14 @@
 # DESeq2 per species × treatment axis.
 #
 # Usage:
-#   Rscript run_deseq2.R --counts FILE --outdir DIR [--mode pairwise|multi] [--na fill0|drop_mixed|drop_any]
+#   Rscript run_deseq2.R --counts FILE --outdir DIR [--mode pairwise|multi]
 #
 # pairwise (default, production): one fit per contrast; filter within contrast samples.
 # multi: one fit per axis with all levels together.
-#
-# NA modes (applied within the samples used for that fit):
-#   fill0       production: NA → 0 then filter ≥5 counts in ≥3 samples
-#   drop_mixed  drop genes NA in some but not all samples; remaining NA → 0
-#   drop_any    drop any gene with ≥1 NA in the fit's samples
 suppressPackageStartupMessages({ library(tidyverse); library(DESeq2) })
 
 args <- commandArgs(trailingOnly = TRUE)
-opt <- list(counts = NULL, outdir = "DESeq_results", mode = "pairwise", na = "fill0")
+opt <- list(counts = NULL, outdir = "DESeq_results", mode = "pairwise")
 i <- 1L
 while (i <= length(args)) {
   key <- sub("^--", "", args[[i]])
@@ -27,7 +22,6 @@ opt$mode <- tolower(opt$mode)
 if (opt$mode %in% c("multilevel", "multi-level", "pooled")) opt$mode <- "multi"
 if (opt$mode == "singleside") opt$mode <- "pairwise"
 if (!opt$mode %in% c("multi", "pairwise")) stop("--mode must be pairwise or multi")
-if (!opt$na %in% c("fill0", "drop_mixed", "drop_any")) stop("--na must be fill0, drop_mixed, or drop_any")
 
 dir.create(opt$outdir, recursive = TRUE, showWarnings = FALSE)
 
@@ -56,20 +50,6 @@ contrasts_vs_control <- list(
   temperature = list(c("32C", "37C"), c("41C", "37C"))
 )
 
-handle_na <- function(x, mode) {
-  if (mode == "drop_any") {
-    x[rowSums(is.na(x)) == 0, , drop = FALSE]
-  } else if (mode == "drop_mixed") {
-    mixed <- rowSums(is.na(x)) > 0 & rowSums(is.na(x)) < ncol(x)
-    x <- x[!mixed, , drop = FALSE]
-    x[is.na(x)] <- 0
-    x
-  } else {
-    x[is.na(x)] <- 0
-    x
-  }
-}
-
 filter_genes <- function(counts, min_count = 5, min_samples = 3) {
   counts[rowSums(counts >= min_count) >= min_samples, , drop = FALSE]
 }
@@ -82,13 +62,14 @@ save_contrast <- function(res_df, species_i, axis_j, comparison, n_samples, n_in
     species = species_i, treatment_type = axis_j, comparison = comparison,
     n_samples = n_samples, n_individuals = n_ind, n_genes_tested = nrow(res_df),
     n_DEGs_padj05 = n_degs, design_formula = "~ individual + treatment",
-    mode = opt$mode, na_mode = opt$na
+    mode = opt$mode
   )
   summary_rows
 }
 
 fit_deseq <- function(counts, meta) {
-  counts <- filter_genes(handle_na(counts, opt$na))
+  counts[is.na(counts)] <- 0
+  counts <- filter_genes(counts)
   if (nrow(counts) < 10) return(NULL)
   DESeq(DESeqDataSetFromMatrix(round(counts), meta, ~ individual + treatment), quiet = TRUE)
 }
@@ -106,7 +87,7 @@ axis_meta <- function(species_meta, axis_j) {
   else species_meta %>% filter(glucose == "8mM", hypoxia == "0")
 }
 
-cat("mode:", opt$mode, " na:", opt$na, " ->", opt$outdir, "\n")
+cat("mode:", opt$mode, " ->", opt$outdir, "\n")
 all_counts <- read.csv(opt$counts, row.names = 1, check.names = FALSE)
 sample_meta <- map_dfr(colnames(all_counts), function(s) {
   p <- parse_sample_name(s)
