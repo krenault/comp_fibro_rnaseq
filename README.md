@@ -20,11 +20,11 @@ config.example.env           copy to .env (gitignored)
 
 ```bash
 cp config.example.env .env
-# edit DATA_DIR, TPM, HOST, BASE
+# edit DATA_DIR, TPM, HOST, BASE, SPECIES
 set -a && source .env && set +a
 ```
 
-Needs: Python 3 + pandas; R with `DESeq2`, `tidyverse`; SSH access to the GTF host for step 1.
+Needs: Python 3 + pandas; R with `DESeq2`, `tidyverse`; SSH access to the GTF host for step 1. Set `SPECIES` to your panel’s directory names under `BASE`.
 
 ## Run
 
@@ -48,7 +48,7 @@ Rscript scripts/run_deseq2.R \
 ## Sample names
 
 `{species}_{individual}_{temp}_{glucose}_{hypoxia}`  
-example: `squirrel_OK14_37C_2.5mM_0`
+example: `speciesA_ind01_37C_2.5mM_0`
 
 Axes hold other treatments at baseline: glucose at 37C / no hypoxia; hypoxia at 37C / 8 mM; temperature at 8 mM / no hypoxia.
 

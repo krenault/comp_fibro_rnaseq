@@ -8,8 +8,11 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 : "${DATA_DIR:?Set DATA_DIR to the local prepDE output directory}"
 : "${PREPDE:=$SCRIPT_DIR/prepDE.py}"
 : "${PREPDE_LENGTH:=75}"   # StringTie prepDE default
-: "${SPECIES:=bactrian_camel bat dolphin dromedary_camel gelada honey_badger human rat rhino rousette seal squirrel whale}"
+# Space-separated species directory names under $BASE (required; no default panel)
+: "${SPECIES:?Set SPECIES to a space-separated list of species directory names}"
 : "${EXPERIMENTS:=glucose temperature hypoxia}"
+# Subdirectory under each species that holds one-to-one StringTie GTFs
+: "${STRINGTIE_SUBDIR:=stringtie_one2one}"
 
 LOG="${DATA_DIR}/processing_log_$(date +%Y%m%d_%H%M%S).txt"
 TMP="${DATA_DIR}/temp_gtfs"
@@ -35,7 +38,7 @@ normalize_sample() {
 
 process_one() {
   local species="$1" experiment="$2"
-  local remote="${BASE}/${species}/stringtie_november2025_one2one"
+  local remote="${BASE}/${species}/${STRINGTIE_SUBDIR}"
   local out="${DATA_DIR}/${species}/${experiment}"
   local list="${out}/sample_list.txt"
   mkdir -p "$out"
