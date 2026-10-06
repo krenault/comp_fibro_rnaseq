@@ -12,7 +12,7 @@
 #   5. Signature = BH p.adj < 0.05
 #   6. HMP across the four class signatures, two-sided, ≥80% sign agreement
 #   7. Fisher combination for shared vs class-distinct
-#   8. GSEA of Drive: rank = −log10(p)×sign(EC); gene sets = signature up/down
+#   8. Honest Drive GSEA is 03_drive_holdout.R (class hold-out), not this script.
 #
 # Discovery units: ASTRA record_id (not collapsed) + extra human/mouse cell GEO.
 # In vivo GEO and Drive libraries are not in discovery.
@@ -563,56 +563,30 @@ cat("Both-species generic:", sum(mam$in_mammalian, na.rm = TRUE), "\n")
 cat("Class-specific:\n")
 print(class_sp[in_class_specific == TRUE, .N, by = stress_class])
 
-generic_up <- mam$gene[mam$in_generic & mam$direction == "up"]
-generic_dn <- mam$gene[mam$in_generic & mam$direction == "down"]
-
 # -----------------------------------------------------------------------------
-# 6) Hallmark GSEA of the generic ranked list
+# 6) Ranked generic list (Hallmark + Reactome + GO BP GSEA is written below)
 # -----------------------------------------------------------------------------
-cat("=== Hallmark GSEA of generic signature ===\n")
 rank_generic <- mam[!is.na(hmp_p) & is.finite(ec_mean)]
 rank_generic[, stat := -log10(pmax(hmp_p, 1e-300)) * sign(ec_mean)]
 rvec <- setNames(rank_generic$stat, rank_generic$gene)
 rvec <- rvec[is.finite(rvec)]
 rvec <- rvec[!duplicated(names(rvec))]
-hm <- tryCatch({
-  msigdbr::msigdbr(species = "Homo sapiens", category = "H") %>%
-    dplyr::select(gs_name, ensembl_gene) %>%
-    split(.$gs_name) %>%
-    lapply(`[[`, "ensembl_gene")
-}, error = function(e) NULL)
-if (length(hm) && length(rvec) > 200) {
-  set.seed(1)
-  fg <- fgsea::fgseaMultilevel(pathways = hm, stats = rvec, minSize = 10, maxSize = 500)
-  fg <- as.data.table(fg)[order(pval)]
-  fwrite(fg[, .(pathway, pval, padj, NES, size)], file.path(OUT, "cell_meta_hallmark_gsea.csv"))
-  cat("  Hallmark hits padj<0.1:", sum(fg$padj < 0.1, na.rm = TRUE), "\n")
-}
 
 # -----------------------------------------------------------------------------
-# 7) Drive query GSEA (held out)
+# 7) Drive conserved assignment (held out). Honest GSEA is 03_drive_holdout.R.
 # -----------------------------------------------------------------------------
-cat("=== Drive GSEA query ===\n")
-class_sets <- lapply(CLASSES, function(cl) {
-  sub <- class_sp[stress_class == cl & in_class_specific == TRUE]
-  list(up = sub$gene[sub$ec_h > 0], down = sub$gene[sub$ec_h < 0])
-})
-names(class_sets) <- CLASSES
-
 drive_files <- list_drive_dge()
 drive_long <- rbindlist(lapply(drive_files, function(f) {
   bn <- tools::file_path_sans_ext(basename(f))
   tt <- str_extract(bn, "glucose|hypoxia|temperature")
   cmp <- str_extract(bn, "(2\\.5mM_vs_8mM|30mM_vs_8mM|6H_vs_0|24H_vs_0|32C_vs_37C|41C_vs_37C)$")
-  if (is.na(tt) || is.na(cmp)) return(NULL)
+  if (is.na(tt) || is.na(cmp) || tt == "glucose") return(NULL)
   sp <- str_remove(bn, paste0("_", tt, "_", cmp, "$"))
   exposure <- fcase(
     tt == "hypoxia" & cmp == "6H_vs_0", "hypoxia_6H",
     tt == "hypoxia" & cmp == "24H_vs_0", "hypoxia_24H",
     tt == "temperature" & grepl("32C", cmp), "cold",
     tt == "temperature" & grepl("41C", cmp), "heat",
-    tt == "glucose" & grepl("2\\.5", cmp), "glucose_low",
-    tt == "glucose" & grepl("30", cmp), "glucose_high",
     default = NA_character_
   )
   d <- as.data.table(read_csv(f, show_col_types = FALSE))
@@ -626,57 +600,7 @@ drive_long <- rbindlist(lapply(drive_files, function(f) {
     driver = paste0("drive_", sp, "_", exposure)
   )[is.finite(lfc) & grepl("^ENSG", gene) & !is.na(exposure)]
 }))
-drive_long[, rankstat := -log10(pmin(pmax(fifelse(is.finite(p) & p > 0, p, 1), 1e-300), 1)) * sign(lfc)]
-drive_long[p == 0, rankstat := 300 * sign(lfc)]
-
-pathways <- list(
-  generic_up = generic_up,
-  generic_down = generic_dn
-)
-for (cl in CLASSES) {
-  pathways[[paste0(cl, "_up")]] <- class_sets[[cl]]$up
-  pathways[[paste0(cl, "_down")]] <- class_sets[[cl]]$down
-}
-pathways <- pathways[vapply(pathways, length, integer(1)) >= 8L]
-
-gsea_one <- function(sub) {
-  st <- setNames(sub$rankstat, sub$gene)
-  st <- st[is.finite(st)]
-  st <- st[!duplicated(names(st))]
-  if (length(st) < 200) return(NULL)
-  set.seed(1)
-  fg <- tryCatch(
-    fgsea::fgseaMultilevel(pathways = pathways, stats = st, minSize = 8, maxSize = 2000),
-    error = function(e) NULL
-  )
-  if (is.null(fg) || !nrow(fg)) return(NULL)
-  as.data.table(fg)[, `:=`(species = sub$species[1], exposure = sub$exposure[1],
-                           driver = sub$driver[1])]
-}
-
-gsea_drv <- rbindlist(lapply(split(drive_long, by = "driver"), gsea_one), fill = TRUE)
-if (nrow(gsea_drv)) {
-  gsea_drv[, padj := p.adjust(pval, method = "BH")]
-  fwrite(gsea_drv[, .(driver, species, exposure, pathway, pval, padj, NES, size)],
-         file.path(OUT, "drive_gsea.csv"))
-}
-
-# combined score: (NES_up − NES_down)/2 so matching the signature is positive
-score_tbl <- if (nrow(gsea_drv)) {
-  dcast(gsea_drv, driver + species + exposure ~ pathway, value.var = "NES")
-} else data.table()
-if ("generic_up" %in% names(score_tbl) && "generic_down" %in% names(score_tbl)) {
-  score_tbl[, generic_score := (generic_up - generic_down) / 2]
-}
-for (cl in CLASSES) {
-  u <- paste0(cl, "_up"); d <- paste0(cl, "_down")
-  if (u %in% names(score_tbl) && d %in% names(score_tbl)) {
-    score_tbl[, (paste0(cl, "_specific_score")) := (get(u) - get(d)) / 2]
-  }
-}
-if (nrow(score_tbl)) fwrite(score_tbl, file.path(OUT, "drive_signature_scores.csv"))
-
-# Drive vs generic Spearman on mixed-model EC
+drive_long <- drive_long[species != "rousette"]
 drive_med <- drive_long[, .(
   z_drive = median(lfc / stats::mad(lfc, na.rm = TRUE), na.rm = TRUE),
   n_sp = uniqueN(species),
@@ -757,22 +681,5 @@ if (!file.exists(gsea_combo) && length(rvec) > 200) {
 
 n_generic <- sum(mam$in_generic, na.rm = TRUE)
 n_both <- sum(mam$in_mammalian, na.rm = TRUE)
-n_contr <- uniqueN(long$dataset_id)
-writeLines(c(
-  "Mammalian generic cellular stress vs Drive — Cell 2023 methods",
-  "",
-  paste0("Discovery contrasts: ", n_contr, " (ASTRA records + GEO cell). Drive held out."),
-  "Per-contrast EC+SE; denoised Spearman top-250; multiple Deming scale;",
-  "metafor mixed-effects (random GSE, tissue, species, and class for generic);",
-  "BH p.adj<0.05; HMP of four class signatures with >=80% sign agreement;",
-  "Fisher combination for shared vs class-distinct; GSEA of Drive.",
-  "",
-  paste0("Generic HMP genes: ", n_generic,
-         " (up ", sum(mam$direction == "up"), ", down ", sum(mam$direction == "down"), ")."),
-  paste0("Stricter both-species generic: ", n_both, "."),
-  "Vote-median-z is not the paper method.",
-  "In vivo GEO and Drive libraries are not in the discovery signature."
-), file.path(OUT, "README_method.txt"))
-
 cat("Done. Generic HMP n=", n_generic, " both-species n=", n_both, "\n", sep = "")
 cat("Outputs in results/mammalian_generic_stress\n")

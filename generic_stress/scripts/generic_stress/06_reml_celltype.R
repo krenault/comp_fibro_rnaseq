@@ -356,15 +356,4 @@ p2 <- ggplot(n_plot, aes(lab, n, fill = dir)) +
   theme(axis.text.x = element_text(angle = 18, hjust = 1), legend.position = "bottom")
 save_png(p2, "reml_filter_sizes.png", 8.2, 5.2)
 
-writeLines(c(
-  "REML stage-2 + cell-type sensitivities (06_reml_celltype.R)",
-  "",
-  "Primary discovery list remains the 02_public_hmp DL HMP (1,344 genes).",
-  "This script recomputes the four class mixed models with REML tau^2",
-  "on the existing Deming-scaled ECs, dropping C2C12 from the primary REML panel.",
-  "Sensitivities: no cancer lines; fibroblast-like cells only.",
-  "",
-  "Full rma.mv with crossed tissue/species intercepts is still not run."
-), file.path(RES, "README_reml_celltype.txt"))
-
 cat("Done.\n")

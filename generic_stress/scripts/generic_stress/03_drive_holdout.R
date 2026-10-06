@@ -246,20 +246,4 @@ print(rho_sp[, .(
   n = .N
 ), by = .(exposure, group = fifelse(species == "human", "human", "other"))][order(exposure, group)])
 
-writeLines(c(
-  "Leave-one-class-out generic CSR vs Drive",
-  "",
-  "Discovery and Drive share heat and hypoxia as classes, not as samples.",
-  "Drive recovering the full generic list after heat/hypoxia is a matched-class",
-  "positive control. The claim of a class-independent CSR uses:",
-  "  - Drive heat vs no_heat generic (public heat dropped from HMP)",
-  "  - Drive hypoxia vs no_hypoxia generic",
-  "  - Drive cold vs full generic (cold is absent from discovery)",
-  "  - optional unmatched core = oxidative + DNA-damage only",
-  "",
-  "Cell 2023 does not leave-one-dataset-out of the 92-dataset aging meta.",
-  "They fit tissue- and species-stratified signatures, and use species LOO only",
-  "for Elastic Net lifespan prediction. Class hold-out is the analog here."
-), file.path(RES, "README_class_holdout.txt"))
-
 cat("Done.\n")

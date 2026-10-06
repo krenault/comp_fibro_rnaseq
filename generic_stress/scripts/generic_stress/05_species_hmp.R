@@ -28,12 +28,10 @@ MIN_N <- 3L
 N_SP_CONS <- 5L
 
 csv3 <- file.path(OUT, "drive_species_hmp_three_insult.csv")
-csv4 <- file.path(OUT, "drive_species_hmp_four_arm.csv")
 
-if (file.exists(csv3) && file.exists(csv4)) {
-  message("Loading existing species HMP tables...")
+if (file.exists(csv3)) {
+  message("Loading existing species HMP table...")
   h3 <- fread(csv3)
-  h4 <- fread(csv4)
 } else {
   source("scripts/shared/hmp_twosided.R")
   drive_files <- list_drive_dge()
@@ -100,10 +98,7 @@ if (file.exists(csv3) && file.exists(csv4)) {
   message("Computing species HMP...")
   h3 <- hmp_by_species(three, L = 3L)
   h3[, panel := "three_insult"]
-  h4 <- hmp_by_species(drive, L = 4L)
-  h4[, panel := "four_arm"]
   fwrite(h3, csv3)
-  fwrite(h4, csv4)
 }
 
 pub <- fread(file.path(RES, "gene_human_mouse_generic.csv"))
@@ -322,12 +317,5 @@ p_ora <- ggplot(keep, aes(signed, name, fill = set, shape = collection)) +
   theme_pub(12) +
   theme(legend.position = "bottom")
 save_png(p_ora, "species_hmp_conserved_ora.png", 9.0, 7.2)
-
-writeLines(c(
-  "Per-species Drive cross-perturbation HMP",
-  "Primary: heat, cold, hypoxia (24H preferred). Thresholds match 02_public_hmp.R.",
-  "Conservation: n_species among 12 Drive mammals; conserved5 = ≥5 species and ≥80% direction.",
-  "ORA: fgsea::fora on Hallmark + Reactome + GO BP, universe = tested genes."
-), file.path(OUT, "README.txt"))
 
 message("Wrote conservation + ORA to ", OUT)

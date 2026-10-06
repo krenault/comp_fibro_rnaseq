@@ -190,8 +190,8 @@ Headline conserved core: **≥ 5 species**. Over-representation
 (`fgsea::fora`) of that core, split up/down, uses Hallmark + Reactome +
 GO BP with universe = genes tested in the species HMP.
 
-A four-arm HMP (6 h, 24 h, cold, heat) is written as a supplement; 6 h and
-24 h are not independent classes, so three-insult is the headline.
+6 h and 24 h hypoxia are not independent classes, so the species HMP uses
+one hypoxia arm (24 h preferred).
 
 ---
 
