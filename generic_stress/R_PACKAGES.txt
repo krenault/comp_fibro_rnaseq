@@ -1,0 +1,16 @@
+# R packages for scripts/generic_stress/ (Bioconductor marked).
+tidyverse
+data.table
+metafor
+fgsea
+ggplot2
+ggrepel
+patchwork
+scales
+readr
+harmonicmeanp
+msigdbr
+babelgene
+DESeq2                 # Bioconductor
+AnnotationDbi          # Bioconductor
+org.Hs.eg.db           # Bioconductor

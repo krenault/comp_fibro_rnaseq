@@ -1,10 +1,12 @@
 # comp_fibro_rnaseq
 
-Reproducible RNA-seq count prep and DESeq2 for a multi-species fibroblast culture panel (glucose / temperature / hypoxia).
+Reproducible RNA-seq count prep and DESeq2 for a multi-species fibroblast culture panel (glucose / temperature / hypoxia), plus the public generic cell-stress signature scored on those Drive tables.
 
-**Pipeline:** StringTie GTFs → official `prepDE.py` → one-to-one human ortholog (ENSG) counts → pairwise DESeq2.
+**DGE pipeline:** StringTie GTFs → official `prepDE.py` → one-to-one human ortholog (ENSG) counts → pairwise DESeq2.
 
 Production DGE is **pairwise**: one DESeq2 fit per contrast (e.g. 2.5 mM vs 8 mM on those samples alone). Design is `~ individual + treatment`. Gene filter: **≥5 counts in ≥3 samples within the contrast.**
+
+**Generic stress (scripts only):** [generic_stress/README.md](generic_stress/README.md) and [generic_stress/METHODS.md](generic_stress/METHODS.md). Public ASTRA + GEO discovery; Drive held out. Tables, plots, and DGE CSVs are local, not in git.
 
 ## Layout
 
@@ -14,6 +16,7 @@ scripts/process_stringtie.sh copy GTFs from a remote host, run prepDE
 scripts/prepare_counts.py    stack species, collapse orthologs, TPM sample filter
 scripts/run_deseq2.R         pairwise DESeq2
 config.example.env           copy to .env (gitignored)
+generic_stress/              scripts for public 4-class CSR vs held-out Drive
 ```
 
 ## Setup
@@ -51,6 +54,14 @@ Rscript scripts/run_deseq2.R \
 example: `speciesA_ind01_37C_2.5mM_0`
 
 Axes hold other treatments at baseline: glucose at 37C / no hypoxia; hypoxia at 37C / 8 mM; temperature at 8 mM / no hypoxia.
+
+## Generic cell-stress signature
+
+Held-out Drive scoring of a four-class public signature (heat, hypoxia, H2O2, UV/IR). Glucose is never a Drive comparison in that analysis.
+
+```bash
+bash generic_stress/scripts/generic_stress/00_run.sh
+```
 
 ## License
 

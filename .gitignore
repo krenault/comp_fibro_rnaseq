@@ -13,3 +13,12 @@ Rplots.pdf
 __pycache__/
 *.pyc
 .venv/
+
+# Generic-stress outputs stay local
+generic_stress/.env
+generic_stress/raw/
+generic_stress/results/
+generic_stress/plots/
+generic_stress/drive_dge/
+generic_stress/archive.tar
+generic_stress/.venv_gdown/
