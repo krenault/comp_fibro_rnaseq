@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 # Cell 2023 (Tyshkovskiy / Gladyshev, PMC11192172) meta-analysis, adapted to
-# cellular stress. Drive is held out of discovery and used only as the GSEA query.
+# cellular stress. The FH experiments are held out of discovery and used only as the GSEA query.
 #
 # STAR Methods mapping:
 #   1. Per-contrast EC + SE + p  (limma in the paper; here ASTRA edgeR p, GEO
@@ -12,10 +12,10 @@
 #   5. Signature = BH p.adj < 0.05
 #   6. HMP across the four class signatures, two-sided, ≥80% sign agreement
 #   7. Fisher combination for shared vs class-distinct
-#   8. Honest Drive GSEA is 03_drive_holdout.R (class hold-out), not this script.
+#   8. Honest FH experiments GSEA is 03_drive_holdout.R (class hold-out), not this script.
 #
 # Discovery units: ASTRA record_id (not collapsed) + extra human/mouse cell GEO.
-# In vivo GEO and Drive libraries are not in discovery.
+# In vivo GEO and FH experiment libraries are not in discovery.
 
 suppressPackageStartupMessages({
   library(tidyverse)
@@ -583,7 +583,7 @@ cat("Class-specific:\n")
 print(class_sp[in_class_specific == TRUE, .N, by = stress_class])
 
 # -----------------------------------------------------------------------------
-# 5b) Fibroblast-only mixed-effect + HMP (same rule; Drive-matched cell type)
+# 5b) Fibroblast-only mixed-effect + HMP (same rule; matched to the FH experiments cell type)
 # -----------------------------------------------------------------------------
 cat("=== Fibroblast-only mixed-effect + HMP ===\n")
 fib_csv <- file.path(OUT, "gene_fibroblast_generic.csv")
@@ -691,7 +691,7 @@ rvec <- rvec[is.finite(rvec)]
 rvec <- rvec[!duplicated(names(rvec))]
 
 # -----------------------------------------------------------------------------
-# 7) Drive conserved assignment (held out). Honest GSEA is 03_drive_holdout.R.
+# 7) FH experiments conserved assignment (held out). Honest GSEA is 03_drive_holdout.R.
 # -----------------------------------------------------------------------------
 drive_files <- list_drive_dge()
 drive_long <- rbindlist(lapply(drive_files, function(f) {
@@ -757,7 +757,7 @@ fwrite(drive_cons, file.path(OUT, "drive_conserved_assignment.csv"))
 asg <- drive_cons[, .N, by = .(exposure, assignment)]
 setnames(asg, "N", "n")
 fwrite(asg, file.path(OUT, "drive_conserved_assignment_counts.csv"))
-cat("Drive conserved assignment:\n")
+cat("FH experiments conserved assignment:\n")
 print(asg)
 
 focal <- c("FASN", "ACACA", "SREBF1", "SREBF2", "SCD", "HSPA1A", "HSPA1B",

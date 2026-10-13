@@ -1,8 +1,8 @@
 #!/usr/bin/env Rscript
-# Leave-one-class-out generic CSR, then score held-out Drive.
+# Leave-one-class-out generic CSR, then score held-out FH experiments.
 #
-# Drive libraries are not in discovery. Heat and hypoxia *classes* are:
-# ASTRA+GEO discovery includes public heat and hypoxia, so Drive heat/hypoxia
+# FH experiment libraries are not in discovery. Heat and hypoxia *classes* are:
+# ASTRA+GEO discovery includes public heat and hypoxia, so FH experiment heat/hypoxia
 # recovering the full generic list is a matched-class positive control, not
 # evidence of a class-independent CSR. Cold has no discovery counterpart.
 #
@@ -10,7 +10,7 @@
 #   no_heat     = HMP of hypoxia + oxidative + DNA-damage
 #   no_hypoxia  = HMP of heat + oxidative + DNA-damage
 #   unmatched   = HMP of oxidative + DNA-damage only
-# Score Drive heat on no_heat, Drive hypoxia on no_hypoxia, Drive cold on
+# Score FH experiment heat on no_heat, FH experiment hypoxia on no_hypoxia, FH experiment cold on
 # the full generic list (and on unmatched as a shared cross-class core).
 
 suppressPackageStartupMessages({
@@ -59,7 +59,7 @@ hmp_from_classes <- function(wide, class_keep, min_n, label) {
   out[]
 }
 
-# Drive DGE (glucose skipped)
+# FH experiment differential expression (glucose skipped)
 drive_files <- list_drive_dge()
 drive_long <- rbindlist(lapply(drive_files, function(f) {
   bn <- tools::file_path_sans_ext(basename(f))
@@ -87,17 +87,17 @@ drive_long <- rbindlist(lapply(drive_files, function(f) {
 }))
 drive_long[, rankstat := -log10(pmin(pmax(fifelse(is.finite(p) & p > 0, p, 1), 1e-300), 1)) * sign(lfc)]
 drive_long[p == 0, rankstat := 300 * sign(lfc)]
-cat("Drive contrasts:", uniqueN(drive_long$driver), " species:", uniqueN(drive_long$species), "\n")
+cat("FH experiment contrasts:", uniqueN(drive_long$driver), " species:", uniqueN(drive_long$species), "\n")
 
 honest_map <- data.table(
   exposure = c("heat", "hypoxia_6H", "hypoxia_24H", "cold"),
   honest_up = c("no_heat_up", "no_hypoxia_up", "no_hypoxia_up", "full_up"),
   honest_down = c("no_heat_down", "no_hypoxia_down", "no_hypoxia_down", "full_down"),
   note = c(
-    "Drive heat vs generic built without public heat",
-    "Drive hypoxia vs generic built without public hypoxia",
-    "Drive hypoxia vs generic built without public hypoxia",
-    "Drive cold vs full generic (cold is not a discovery class)"
+    "FH experiment heat vs generic built without public heat",
+    "FH experiment hypoxia vs generic built without public hypoxia",
+    "FH experiment hypoxia vs generic built without public hypoxia",
+    "FH experiment cold vs full generic (cold is not a discovery class)"
   )
 )
 
@@ -202,7 +202,7 @@ score_holdout <- function(sigs, mam, tag = "") {
     honest[, .(species, exposure, NES_honest_up = NES_up, padj_honest_up = padj_up, note)],
     by = c("species", "exposure"), all = TRUE
   )
-  cmp[, group := fifelse(species == "human", "Human Drive", "Other Drive mammals")]
+  cmp[, group := fifelse(species == "human", "Human", "Other mammals")]
   fwrite(cmp, file.path(RES, paste0("drive_human_vs_other_mammals", suffix, ".csv")))
 
   cat("\nMedian full-generic-up NES by exposure × group:\n")

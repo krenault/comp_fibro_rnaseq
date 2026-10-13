@@ -4,7 +4,7 @@ if (!requireNamespace("ggplot2", quietly = TRUE)) {
   stop("ggplot2 required for plot_aesthetics.R")
 }
 
-# Treatment / panel colors (Drive Flexible_homeostasis)
+# Treatment / panel colors (FH experiments Flexible_homeostasis)
 treatment_colors <- c(
   hypoxia    = "#2166AC",
   temperature = "#B2182B",

@@ -231,8 +231,8 @@ cat("  genes remeta'd:", nrow(sign_tab),
     sprintf(" (%.1f%%)\n", 100 * mean(sign_tab$same_sign, na.rm = TRUE)))
 fwrite(sign_tab, file.path(RES, "reml_concordance_generic.csv"))
 
-# Full panels. Genome-wide rma.mv is optional (RUN_RMAMV=1); univariate REML
-# is the local default and does not need a server.
+# Full panels. Genome-wide rma.mv runs only if RUN_RMAMV=1.
+# Univariate REML is the default.
 panels <- list()
 panels$reml_noc2c12 <- run_panel(long[cell_group != "myoblast"], "reml_noc2c12")
 panels$reml_nocancer <- run_panel(long[cell_group != "cancer" & cell_group != "myoblast"], "reml_nocancer")
@@ -355,7 +355,7 @@ p2 <- ggplot(n_plot, aes(lab, n, fill = dir)) +
   labs(
     title = "Generic CSR size under REML and cell-type filters",
     subtitle = sprintf(
-      "Fibroblast-only is the Drive-matched check. Fibroblast hypoxia GSE in this matrix: %d.",
+      "Fibroblast-only uses the same rule on fibroblast contrasts. Fibroblast hypoxia GSE in this matrix: %d.",
       uniqueN(long[cell_group == "fibroblast" & stress_class == "hypoxia", gse_id])
     ),
     x = NULL, y = "Generic genes"

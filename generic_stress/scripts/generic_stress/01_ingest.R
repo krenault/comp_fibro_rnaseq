@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-# 01 — discovery ingest. ASTRA Zenodo + extra cell GEO. Drive held out.
+# 01 — discovery ingest. ASTRA Zenodo + extra cell GEO. FH experiments held out.
 .file <- sub("^--file=", "", grep("^--file=", commandArgs(trailingOnly = FALSE), value = TRUE))
 .here <- if (length(.file)) dirname(normalizePath(.file[[1]])) else getwd()
 source(file.path(.here, "..", "shared", "root.R"))

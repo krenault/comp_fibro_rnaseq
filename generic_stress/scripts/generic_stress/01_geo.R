@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 # Download and DE mouse *cell* stress RNA-seq with usable count/FPKM tables.
 # Writes results/geo_deseq/ in the same schema as existing GEO DGE files.
-# Drive is not used.
+# The FH experiments are not used.
 
 suppressPackageStartupMessages({
   library(tidyverse)

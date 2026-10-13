@@ -16,3 +16,6 @@ archive.tar
 *.pdf
 __pycache__/
 *.pyc
+scripts/pull_drive_dge.sh
+scripts/pull_drive_dge_gdown.sh
+scripts/setup_gdrive_rclone.sh

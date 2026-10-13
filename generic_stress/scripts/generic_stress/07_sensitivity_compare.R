@@ -1,8 +1,8 @@
 #!/usr/bin/env Rscript
-# Reviewer sensitivity: primary discovery vs DROP_GSE=GSE328685.
-# GSE328685 is WT tendon fibroblast hypoxia at 4 days (not a 6–24 h pulse).
-# Primary keeps it; this script scores whether membership, sign, or Drive
-# hold-out GSEA calls move when it is removed.
+# Sensitivity: primary discovery vs the same discovery without GSE328685.
+# GSE328685 is wild-type tendon fibroblast hypoxia for 4 days, not a 6–24 h pulse.
+# The primary signature keeps it. This script asks whether membership, sign, or
+# FH experiment hold-out GSEA calls move when it is removed.
 
 suppressPackageStartupMessages({
   library(tidyverse)
@@ -121,7 +121,7 @@ gsea <- rbindlist(list(
 if (nrow(gsea)) {
   fwrite(gsea, file.path(PRI, "sens_no_GSE328685_drive_gsea_calls.csv"))
   fwrite(gsea, file.path(SEN, "sens_no_GSE328685_drive_gsea_calls.csv"))
-  cat("\nDrive honest GSEA call concordance:\n")
+  cat("\nFH experiments honest GSEA call concordance:\n")
   print(gsea[, .(
     n = .N,
     n_same_call = sum(call_same),
@@ -180,7 +180,7 @@ if (nrow(gsea)) {
               fontface = "bold", size = 3, color = "grey15") +
     scale_fill_manual(values = call_cols, name = "Primary call", drop = FALSE) +
     labs(
-      title = "Drive hold-out GSEA calls are unchanged without GSE328685",
+      title = "FH experiment hold-out GSEA calls are unchanged without GSE328685",
       subtitle = sprintf(
         "Fill = primary pan-cell honest GSEA. x = call differs after dropping GSE328685 (%d of %d contrasts).",
         n_flip, nrow(gd)

@@ -38,7 +38,7 @@
 #
 # multilevel = FALSE is the important setting. In that mode the package
 # IGNORES L. L is still an argument, and the analysis scripts still pass
-# L = 4 (public classes) or L = 3 (Drive heat/cold/hypoxia), but the
+# L = 4 (public classes) or L = 3 (FH experiment heat/cold/hypoxia), but the
 # combined p-value depends only on the p-values you hand it. A gene
 # measured in 3 classes is combined as 3 tests, not as 3 tests inside a
 # family of 4. Do not flip multilevel to TRUE: that would change the
@@ -70,7 +70,7 @@
 # effect from metafor, after many studies were combined. This function
 # only combines those four numbers.
 #
-# For one Drive species, each "test" is that species' own DESeq2 contrast
+# For one species in the FH experiments, each "test" is that species' own DESeq2 contrast
 # (heat 41 vs 37, cold 32 vs 37, and one hypoxia). Same function, different
 # rows. That table is drive_species_hmp_three_insult.csv.
 # =============================================================================
@@ -165,7 +165,7 @@ hmp_twosided <- function(p, sign_ec, L = length(p)) {
 # for the public analysis, class is heat / hypoxia / oxidative / dna_damage
 # and effect is the class mixed-model estimate.
 #
-# For a Drive species the same shape works with
+# For a FH experiment species the same shape works with
 #   gene, exposure, pvalue, log2FoldChange
 # and the column-name guesses below.
 #

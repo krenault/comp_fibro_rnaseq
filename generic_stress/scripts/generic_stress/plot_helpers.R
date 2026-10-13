@@ -28,7 +28,7 @@ pretty_exp <- function(x) {
   )
 }
 
-# Public classes that enter the HMP gene set for each Drive contrast.
+# Public classes that enter the HMP gene set for each FH experiment contrast.
 # Heat holds out public heat. Hypoxia holds out public hypoxia.
 # Cold is not in ASTRA, so it is scored on the full four-class list (includes heat).
 holdout_included <- function(exposure) {
@@ -46,11 +46,11 @@ holdout_included <- function(exposure) {
 holdout_gene_set_label <- function(exposure) {
   switch(
     as.character(exposure),
-    heat        = "Drive heat vs public hypoxia + H2O2 + UV",
-    hypoxia_6H  = "Drive hypoxia vs public heat + H2O2 + UV",
-    hypoxia_24H = "Drive hypoxia vs public heat + H2O2 + UV",
-    cold        = "Drive cold vs public heat + hypoxia + H2O2 + UV",
-    unmatched   = "Drive vs public H2O2 + UV only",
+    heat        = "FH experiment heat vs public hypoxia + H2O2 + UV",
+    hypoxia_6H  = "FH experiment hypoxia vs public heat + H2O2 + UV",
+    hypoxia_24H = "FH experiment hypoxia vs public heat + H2O2 + UV",
+    cold        = "FH experiment cold vs public heat + hypoxia + H2O2 + UV",
+    unmatched   = "FH experiments vs public H2O2 + UV only",
     as.character(exposure)
   )
 }

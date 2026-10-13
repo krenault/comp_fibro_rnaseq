@@ -21,14 +21,14 @@ bash scripts/generic_stress/00_run.sh --ingest # re-download ASTRA + extra GEO
 | `00_run.sh` | runner |
 | `01_ingest.R` | ASTRA + extra cell GEO (`01_astra`, `01_geo`, `01_metadata`) |
 | `02_public_hmp.R` | mixed-effect class models + HMP (pan-cell and fibroblast-only) |
-| `03_drive_holdout.R` | class-holdout GSEA on Drive (both lists) |
+| `03_drive_holdout.R` | class-holdout GSEA on the FH experiments (both lists) |
 | `04_plots.R` | figures in `plots/mammalian_generic_stress/` |
-| `05_species_hmp.R` | per-species Drive HMP, conservation, ORA |
+| `05_species_hmp.R` | per-species FH experiment HMP, conservation, ORA |
 | `06_reml_celltype.R` | REML / cell-type Jaccard (skip with `SKIP_REML=1`) |
 | `07_sensitivity_compare.R` | drop GSE328685 vs primary (`00_run.sh --sens-328685`) |
 | `share/hmp_combine.R` | harmonic-mean combination on a table of tests |
 
-R packages: `R_PACKAGES.txt`. Pull Drive DGE: `bash scripts/pull_drive_dge.sh`.
+R packages: `R_PACKAGES.txt`.
 
 ## Layout
 
@@ -36,7 +36,6 @@ R packages: `R_PACKAGES.txt`. Pull Drive DGE: `bash scripts/pull_drive_dge.sh`.
 scripts/generic_stress/                 analysis path (00–07)
 scripts/shared/                         plot theme, ROOT, GEO helpers (HMP wrapper)
 share/hmp_combine.R                     harmonic-mean combination
-scripts/pull_drive_dge*.sh              fetch fibroblast-panel differential expression
 ```
 
 ## Design

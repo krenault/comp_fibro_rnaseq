@@ -1,4 +1,4 @@
-# Analysis root and Drive DGE path. Override with FLEX_ROOT / DRIVE_DGE.
+# Analysis root and FH experiment differential expression path. Override with FLEX_ROOT / DRIVE_DGE.
 # Scripts live in scripts/generic_stress/; this file lives in scripts/shared/.
 
 flex_this_file <- function() {
@@ -37,9 +37,8 @@ DRIVE_DGE <- normalizePath(DRIVE_DGE, mustWork = FALSE)
 list_drive_dge <- function() {
   if (!dir.exists(DRIVE_DGE)) {
     stop(
-      "Drive DGE folder not found: ", DRIVE_DGE,
-      "\nPut pairwise DESeq2 CSVs there, or set DRIVE_DGE.",
-      "\nPull: bash scripts/pull_drive_dge.sh"
+      "FH experiment differential-expression folder not found: ", DRIVE_DGE,
+      "\nPut the pairwise DESeq2 CSVs there, or set DRIVE_DGE."
     )
   }
   list.files(DRIVE_DGE, pattern = "\\.csv$", full.names = TRUE)

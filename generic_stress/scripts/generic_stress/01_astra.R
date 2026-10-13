@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 # Download / cache ASTRA Zenodo tables and write a comparison catalog + per-gene z.
-# Drive is not touched here.
+# The FH experiments are not touched here.
 
 suppressPackageStartupMessages({
   library(data.table)

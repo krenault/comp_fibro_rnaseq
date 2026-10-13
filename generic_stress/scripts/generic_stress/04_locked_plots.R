@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-# Public-generic vs Drive figures. Written to plots/mammalian_generic_stress/.
+# Public-generic vs the FH experiments figures. Written to plots/mammalian_generic_stress/.
 
 suppressPackageStartupMessages({
   library(tidyverse)
@@ -172,9 +172,9 @@ pub_gen <- unique(mam$gene[mam$in_generic])
 univ <- tibble(
   set = factor(
     c("Public meta genes", sprintf("Public generic (%s)", comma(n_generic)),
-      "In Drive (any species)", "Generic in Drive"),
+      "In FH experiments (any species)", "Generic in the FH experiments"),
     levels = c("Public meta genes", sprintf("Public generic (%s)", comma(n_generic)),
-               "In Drive (any species)", "Generic in Drive")
+               "In FH experiments (any species)", "Generic in the FH experiments")
   ),
   n = c(
     length(pub_all),
@@ -198,7 +198,7 @@ p_univ <- ggplot(univ, aes(set, n)) +
   labs(
     title = "Gene universes overlap — we are not losing the comparison to IDs",
     subtitle = sprintf(
-      "%.0f%% of public-tested genes and %.0f%% of the %s generic genes appear in at least one Drive file.",
+      "%.0f%% of public-tested genes and %.0f%% of the %s generic genes appear in at least one FH experiment file.",
       100 * length(intersect(pub_all, drive_union)) / length(pub_all),
       100 * length(intersect(pub_gen, drive_union)) / max(length(pub_gen), 1),
       comma(n_generic)
@@ -209,7 +209,7 @@ p_univ <- ggplot(univ, aes(set, n)) +
 save_png(p_univ, "gene_universe.png", 8.8, 5.6)
 
 # -----------------------------------------------------------------------------
-# Conserved Drive genes vs public generic
+# Conserved FH experiment genes vs public generic
 # -----------------------------------------------------------------------------
 dir_map <- mam %>% filter(in_generic) %>% distinct(gene, direction)
 asg2 <- asg %>%
@@ -223,13 +223,13 @@ asg2 <- asg %>%
       assignment == "generic_mammalian_stress" ~
         "Public generic, opposite direction",
       assignment == "matched_class_specific" ~ "Public class-specific",
-      TRUE ~ "Drive residual"
+      TRUE ~ "residual to the public list"
     ),
     bin = factor(bin, levels = c(
       "Public generic, same direction",
       "Public generic, opposite direction",
       "Public class-specific",
-      "Drive residual"
+      "residual to the public list"
     ))
   )
 asg_n <- asg2 %>% count(exp_lab, bin, name = "n") %>%
@@ -240,7 +240,7 @@ bin_cols <- c(
   "Public generic, same direction" = unname(treatment_colors["stress"]),
   "Public generic, opposite direction" = unname(treatment_colors["heat"]),
   "Public class-specific" = unname(treatment_colors["oxidative"]),
-  "Drive residual" = "#B0B7BE"
+  "residual to the public list" = "#B0B7BE"
 )
 p_cons <- ggplot(asg_n, aes(exp_lab, n, fill = bin)) +
   geom_col(width = 0.72, color = "grey25", linewidth = 0.3) +
@@ -252,8 +252,8 @@ p_cons <- ggplot(asg_n, aes(exp_lab, n, fill = bin)) +
   ) +
   scale_fill_manual(values = bin_cols, name = NULL) +
   labs(
-    title = "Most conserved Drive genes are not the public generic",
-    subtitle = "Conserved = ≥5 species, 80% agree, |median LFC| ≥ 0.25. Grey = Drive-only. Red = on the public list but opposite sign.",
+    title = "Most conserved FH experiment genes are not the public generic",
+    subtitle = "Conserved = ≥5 species, 80% agree, |median LFC| ≥ 0.25. Grey = only in the FH experiments. Red = on the public list but opposite sign.",
     x = NULL, y = "Conserved genes"
   ) +
   theme_pub(13) +
@@ -271,7 +271,7 @@ p_score <- ggplot(score, aes(exp_lab, species_lab, fill = call)) +
             fontface = "bold", size = 3.3) +
   scale_fill_manual(values = call_cols, name = NULL) +
   labs(
-    title = "Does Drive induce the class-held-out public up-genes?",
+    title = "Do the FH experiments induce the class-held-out public up-genes?",
     subtitle = "Coloured cells in the strip = public classes that enter the HMP gene set. Grey = held out. Cold uses all four (includes heat).",
     x = NULL, y = NULL
   ) +
@@ -283,7 +283,7 @@ p_hold <- stack_strip(
 save_png(p_hold, "holdout_scorecard.png", 8.8, 7.6)
 
 # -----------------------------------------------------------------------------
-# Unmatched ox + DNA, every Drive exposure
+# Unmatched ox + DNA, every FH experiment exposure
 # -----------------------------------------------------------------------------
 unm <- hold %>%
   filter(pathway == "unmatched_up") %>%
@@ -308,7 +308,7 @@ p_unm_tiles <- ggplot(unm, aes(exp_lab, species_lab, fill = call)) +
   scale_fill_manual(values = call_cols, name = NULL) +
   labs(
     title = "Same gene set on every column: public H2O2 + UV up-genes only",
-    subtitle = "Heat and hypoxia are both held out. The strip is identical across Drive contrasts.",
+    subtitle = "Heat and hypoxia are both held out. The strip is identical across FH experiment contrasts.",
     x = NULL, y = NULL
   ) +
   tile_theme
@@ -335,7 +335,7 @@ p_cold <- ggplot(cold, aes(NES_up, species_lab)) +
     title = sprintf("Cold: %d of 12 species induce the full public generic-up list",
                     sum(cold$call == "Induced")),
     subtitle = sprintf(
-      "GSEA NES of Drive cold (ranked −log10(p)×sign(LFC)) vs the %s public generic-up genes. Cold is not in ASTRA, so the gene set includes public heat.",
+      "GSEA NES of FH experiment cold (ranked −log10(p)×sign(LFC)) vs the %s public generic-up genes. Cold is not in ASTRA, so the gene set includes public heat.",
       comma(n_up)
     ),
     x = "GSEA NES (public generic-up genes)", y = NULL
@@ -360,8 +360,8 @@ p_hum <- ggplot(honest, aes(exp_lab, NES_up)) +
     color = "grey20", size = 4.4, stroke = 0.7
   ) +
   labs(
-    title = "Human Drive is not a better match than other mammals",
-    subtitle = "Purple = human; grey = other 11 species. Y is GSEA NES of Drive (ranked −log10(p)×sign(LFC)) vs the held-out public generic-up genes. Strip = public classes in that gene set.",
+    title = "Human is not a better match than other mammals",
+    subtitle = "Purple = human; grey = other 11 species. Y is GSEA NES of the FH experiments (ranked −log10(p)×sign(LFC)) vs the held-out public generic-up genes. Strip = public classes in that gene set.",
     x = NULL, y = "GSEA NES vs held-out public generic-up genes"
   ) +
   theme_pub(12)
@@ -418,18 +418,18 @@ writeLines(c(
   "",
   "discovery_classes — public ASTRA/GEO contrasts by class",
   "public_pathways — Hallmark + Reactome + GO BP GSEA of the pan-cell generic list",
-  "gene_universe — public vs Drive ID overlap",
-  "conserved_overlap — conserved Drive genes vs public generic",
-  "holdout_scorecard — Drive vs class-held-out public up-genes; strip = classes in the HMP set",
-  "unmatched_ox_dna_scorecard — same H2O2+UV gene set on every Drive contrast",
-  "cold_forest — GSEA NES of Drive cold vs the public generic-up genes",
-  "human_vs_others_holdout_nes — GSEA NES of each Drive contrast vs the held-out public generic-up set",
+  "gene_universe — public vs the FH experiments ID overlap",
+  "conserved_overlap — conserved FH experiment genes vs public generic",
+  "holdout_scorecard — FH experiments vs class-held-out public up-genes; strip = classes in the HMP set",
+  "unmatched_ox_dna_scorecard — same H2O2+UV gene set on every FH experiment contrast",
+  "cold_forest — GSEA NES of FH experiment cold vs the public generic-up genes",
+  "human_vs_others_holdout_nes — GSEA NES of each FH experiment contrast vs the held-out public generic-up set",
   "reml_celltype_overlap — Jaccard of alternative generic lists vs the pan-cell generic",
-  "volcano_<species> — Drive DEGs; labels = padj<0.05 AND public generic",
-  "drive_lfc_density — median Drive LFC, generic vs other genes",
+  "volcano_<species> — FH experiment differential expression; labels = padj<0.05 AND public generic",
+  "drive_lfc_density — median FH experiment log2 fold change, generic vs other genes",
   "species_hmp_counts — per-species heat+cold+hypoxia HMP counts",
   "species_hmp_vs_public — numerator = genes in the public generic; denominator = that species HMP list",
-  "species_hmp_conservation — how many Drive species call each gene",
+  "species_hmp_conservation — how many FH experiment species call each gene",
   "species_hmp_conserved_ora — ORA of the ≥5-species core"
 ), file.path(PLOT_DIR, "README.md"))
 

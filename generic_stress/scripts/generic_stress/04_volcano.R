@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-# Per-species Drive volcanoes. Labels = DESeq2 padj < 0.05 AND public generic.
+# Per-species FH experiment volcanoes. Labels = DESeq2 padj < 0.05 AND public generic.
 
 suppressPackageStartupMessages({
   library(tidyverse)
@@ -58,7 +58,7 @@ parse_one <- function(f) {
 
 drive <- map_dfr(drive_files, parse_one) %>%
   filter(species %in% species_levels)
-message("Drive rows: ", nrow(drive), " contrasts: ", n_distinct(paste(drive$species, drive$exposure)))
+message("FH experiment rows: ", nrow(drive), " contrasts: ", n_distinct(paste(drive$species, drive$exposure)))
 
 # -----------------------------------------------------------------------------
 # One volcano file per species. Labels are that panel's significant generic DEGs.
@@ -108,12 +108,12 @@ plot_species <- function(sp) {
     facet_wrap(~ exp_lab, ncol = 2) +
     coord_cartesian(xlim = c(-4.5, 4.5), ylim = c(0, 20)) +
     labs(
-      title = paste0(pretty_species(sp), " Drive volcano"),
+      title = paste0(pretty_species(sp), " FH experiment volcano"),
       subtitle = sprintf(
         "Grey = not in the public generic (%s genes). Purple = public generic. Labels = padj < 0.05 AND public generic (top 8 per panel by |LFC| x -log10(p)).",
         scales::comma(nrow(gen))
       ),
-      x = "Drive log2 fold change",
+      x = "FH experiment log2 fold change",
       y = expression(-log[10](italic(p)))
     ) +
     theme_pub(12)
@@ -129,7 +129,7 @@ counts <- map_dfr(species_levels, function(sp) {
 write_csv(counts, file.path(RES, "drive_volcano_generic_counts.csv"))
 
 # -----------------------------------------------------------------------------
-# Density of median Drive LFC (generic vs other)
+# Density of median FH experiment log2 fold change (generic vs other)
 # -----------------------------------------------------------------------------
 med <- drive %>%
   group_by(gene, exposure) %>%
@@ -143,21 +143,21 @@ med <- drive %>%
   mutate(
     is_generic = !is.na(gen_dir),
     exp_lab = factor(pretty_exp(exposure), levels = exp_levels),
-    set = if_else(is_generic, "Public generic", "Other Drive genes")
+    set = if_else(is_generic, "Public generic", "Other FH experiment genes")
   )
 p_dens <- ggplot(med, aes(lfc_med, color = set, fill = set)) +
   geom_vline(xintercept = 0, linetype = "dashed", color = "grey55") +
   geom_density(alpha = 0.18, linewidth = 0.8) +
   scale_color_manual(values = c(`Public generic` = unname(treatment_colors["stress"]),
-                                `Other Drive genes` = "grey45"), name = NULL) +
+                                `Other FH experiment genes` = "grey45"), name = NULL) +
   scale_fill_manual(values = c(`Public generic` = unname(treatment_colors["stress"]),
-                               `Other Drive genes` = "grey70"), name = NULL) +
+                               `Other FH experiment genes` = "grey70"), name = NULL) +
   facet_wrap(~ exp_lab, ncol = 2) +
   coord_cartesian(xlim = c(-2.2, 2.2)) +
   labs(
-    title = "Public generic genes are not the extreme Drive DEGs",
-    subtitle = "Density of median Drive LFC across species. If this were just CSR, purple would sit in the tails.",
-    x = "Median Drive log2 fold change", y = "Density"
+    title = "Public generic genes are not the extreme FH experiment differential expression",
+    subtitle = "Density of median FH experiment log2 fold change across species. If this were just CSR, purple would sit in the tails.",
+    x = "Median FH experiment log2 fold change", y = "Density"
   ) +
   theme_pub(13) +
   theme(legend.position = "bottom")

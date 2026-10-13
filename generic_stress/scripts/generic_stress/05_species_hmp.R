@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-# 05 — per-species Drive cross-perturbation HMP, conservation, enrichment.
+# 05 — per-species FH experiment cross-perturbation HMP, conservation, enrichment.
 # Same combination rule as the public generic (BH HMP < 0.05, ≥3 arms, ≥80% sign).
 # Two tests, same three jobs: heat + cold + 24 h hypoxia, and heat + cold + 6 h.
 # A missing 24 h value is not filled with 6 h. Glucose dropped. Rousette dropped.
@@ -171,7 +171,7 @@ p_n <- ggplot(n_long, aes(species_lab, n, fill = direction)) +
   scale_fill_manual(values = c(Up = unname(gradient_high),
                                Down = unname(gradient_low)), name = NULL) +
   labs(
-    title = "Drive cross-perturbation genes, per species",
+    title = "Cross-perturbation genes in the FH experiments, per species",
     subtitle = "Two tests: heat + cold + 24 h, and heat + cold + 6 h. BH HMP < 0.05 and all three signs agree.",
     x = NULL, y = "Genes"
   ) +
@@ -195,7 +195,7 @@ p_ov <- ggplot(sum_both, aes(species_lab, frac_of_cross_in_public)) +
 save_png(p_ov, "species_hmp_vs_public.png", 9.4, 8.2)
 
 # -----------------------------------------------------------------------------
-# Conservation across Drive species
+# Conservation across FH experiment species
 # -----------------------------------------------------------------------------
 conserve <- function(h, label) {
   x <- h[in_cross == TRUE]
@@ -240,12 +240,12 @@ p_cons <- ggplot(hist_df, aes(n_species, N)) +
   geom_text(aes(label = N), vjust = -0.3, fontface = "bold", size = 3.2) +
   scale_x_continuous(breaks = 1:n_sp) +
   labs(
-    title = "Most Drive cross-perturbation genes are species-restricted",
+    title = "Most cross-perturbation genes in the FH experiments are species-restricted",
     subtitle = sprintf(
       "Genes that pass both the 24 h test and the 6 h test. %d in >=5 species. %d of that set are in the public generic.",
       sum(cons$conserved5), sum(cons$conserved5 & cons$in_public_generic)
     ),
-    x = "Drive species calling the gene", y = "Genes"
+    x = "FH experiment species calling the gene", y = "Genes"
   ) +
   theme_pub(13)
 save_png(p_cons, "species_hmp_conservation.png", 8.4, 5.4)

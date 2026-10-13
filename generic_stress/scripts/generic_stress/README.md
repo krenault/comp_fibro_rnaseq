@@ -1,7 +1,7 @@
 # Generic stress (`00_` … `06_`)
 
-Drive is held out of discovery. Glucose is never a Drive comparison.
-`drive_dge/` (or `$DRIVE_DGE`) is the held-out query and is not modified here.
+The FH experiments are held out of discovery. Glucose is never an FH experiment comparison.
+The query tables are the pairwise DESeq2 results for the FH experiments.
 
 ```
 bash scripts/generic_stress/00_run.sh              # skip ingest

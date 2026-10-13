@@ -1,6 +1,6 @@
 # comp_fibro_rnaseq
 
-Reproducible RNA-seq count prep and DESeq2 for a multi-species fibroblast culture panel (glucose / temperature / hypoxia), plus the public generic cell-stress signature scored on those Drive tables.
+Reproducible RNA-seq count prep and DESeq2 for a multi-species fibroblast culture panel (glucose / temperature / hypoxia), plus the public generic cell-stress signature scored on the FH experiments.
 
 **DGE pipeline:** StringTie GTFs → official `prepDE.py` → one-to-one human ortholog (ENSG) counts → pairwise DESeq2.
 
@@ -53,7 +53,7 @@ Axes hold other treatments at baseline: glucose at 37C / no hypoxia; hypoxia at 
 
 ## Generic cell-stress signature
 
-Held-out Drive scoring of a four-class public signature (heat, hypoxia, H2O2, UV/IR). Glucose is never a Drive comparison in that analysis.
+The FH experiments are scored with a four-class public signature (heat, hypoxia, H2O2, UV/IR). Glucose is not a comparison in that analysis.
 
 ```bash
 bash generic_stress/scripts/generic_stress/00_run.sh
