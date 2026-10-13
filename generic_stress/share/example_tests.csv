@@ -1,0 +1,15 @@
+gene,class,p,effect
+GENE_UP,heat,1e-6,0.8
+GENE_UP,hypoxia,1e-5,0.5
+GENE_UP,oxidative,1e-4,0.4
+GENE_UP,dna_damage,1e-3,0.2
+GENE_DOWN,heat,1e-4,-0.6
+GENE_DOWN,hypoxia,1e-3,-0.4
+GENE_DOWN,oxidative,0.01,-0.3
+GENE_DOWN,dna_damage,0.02,-0.2
+GENE_SPLIT,heat,1e-6,0.9
+GENE_SPLIT,hypoxia,1e-6,-0.9
+GENE_SPLIT,oxidative,1e-4,0.4
+GENE_SPLIT,dna_damage,1e-3,-0.3
+GENE_SPARSE,heat,1e-8,1.0
+GENE_SPARSE,hypoxia,1e-8,1.0
