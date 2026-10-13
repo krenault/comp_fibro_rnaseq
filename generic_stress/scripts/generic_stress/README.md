@@ -12,7 +12,9 @@ Rscript scripts/generic_stress/02_public_hmp.R
 Rscript scripts/generic_stress/03_drive_holdout.R
 Rscript scripts/generic_stress/04_plots.R
 Rscript scripts/generic_stress/05_species_hmp.R
-Rscript scripts/generic_stress/06_reml_celltype.R  # optional
+Rscript scripts/generic_stress/06_reml_celltype.R  # 00_run.sh skips this if SKIP_REML=1
+
+Rscript share/hmp_combine.R share/example_tests.csv share/example_hmp.csv --L 4
 ```
 
 Outputs: `results/mammalian_generic_stress/` and `plots/mammalian_generic_stress/`.

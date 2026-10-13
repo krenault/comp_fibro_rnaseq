@@ -1,7 +1,8 @@
 #!/usr/bin/env Rscript
 # 05 — per-species Drive cross-perturbation HMP, conservation, enrichment.
 # Same combination rule as the public generic (BH HMP < 0.05, ≥3 arms, ≥80% sign).
-# Primary insults: heat, cold, hypoxia (24H preferred). Glucose dropped.
+# Two tests, same three jobs: heat + cold + 24 h hypoxia, and heat + cold + 6 h.
+# A missing 24 h value is not filled with 6 h. Glucose dropped. Rousette dropped.
 
 suppressPackageStartupMessages({
   library(tidyverse)
@@ -27,13 +28,58 @@ HMP_PADJ <- 0.05
 MIN_N <- 3L
 N_SP_CONS <- 5L
 
-csv3 <- file.path(OUT, "drive_species_hmp_three_insult.csv")
+panel_csv <- function(panel) file.path(OUT, paste0("drive_species_hmp_", panel, ".csv"))
 
-if (file.exists(csv3)) {
-  message("Loading existing species HMP table...")
-  h3 <- fread(csv3)
+hmp_by_species <- function(dt, L) {
+  rbindlist(lapply(split(dt, by = "species"), function(spdt) {
+    wide <- dcast(spdt, gene ~ exposure, value.var = c("p", "lfc"))
+    p_cols <- grep("^p_", names(wide), value = TRUE)
+    lfc_cols <- grep("^lfc_", names(wide), value = TRUE)
+    rows <- lapply(seq_len(nrow(wide)), function(i) {
+      pv <- unlist(wide[i, ..p_cols], use.names = FALSE)
+      ev <- unlist(wide[i, ..lfc_cols], use.names = FALSE)
+      h <- hmp_twosided(pv, ev, L = L)
+      data.table(
+        gene = wide$gene[i], hmp_p = h$p, hmp_dir = h$dir,
+        n_arm = h$n, frac_agree = h$frac_agree,
+        lfc_mean = mean(ev[is.finite(ev)])
+      )
+    })
+    out <- rbindlist(rows)
+    out[, species := unique(spdt$species)]
+    out[, hmp_padj := p.adjust(hmp_p, method = "BH")]
+    out[, in_cross := is.finite(hmp_padj) & hmp_padj < HMP_PADJ &
+          n_arm >= MIN_N & frac_agree >= SIGN_AGREE]
+    out[, direction := fcase(
+      in_cross & hmp_dir > 0, "up",
+      in_cross & hmp_dir < 0, "down",
+      default = "none"
+    )]
+    out
+  }))
+}
+
+run_panel <- function(drive, hypoxia_exposure, panel) {
+  hyp <- data.table::copy(drive[exposure == hypoxia_exposure])
+  hyp[, exposure := "hypoxia"]
+  dt <- rbindlist(list(
+    data.table::copy(drive[exposure %in% c("heat", "cold")]),
+    hyp
+  ))
+  message("Computing ", panel)
+  h <- hmp_by_species(dt, L = 3L)
+  h[, panel := panel]
+  fwrite(h, panel_csv(panel))
+  h
+}
+
+if (identical(Sys.getenv("SKIP_SPECIES_HMP"), "1") &&
+    file.exists(panel_csv("heat_cold_24h")) &&
+    file.exists(panel_csv("heat_cold_6h"))) {
+  message("SKIP_SPECIES_HMP=1; loading the 24 h and 6 h tables")
+  h24 <- fread(panel_csv("heat_cold_24h"))
+  h6 <- fread(panel_csv("heat_cold_6h"))
 } else {
-  source("scripts/shared/hmp_twosided.R")
   drive_files <- list_drive_dge()
   drive_files <- drive_files[!grepl("glucose", drive_files)]
   parse_one <- function(f) {
@@ -57,48 +103,22 @@ if (file.exists(csv3)) {
   }
   drive <- rbindlist(lapply(drive_files, parse_one))
   drive <- drive[species != "rousette"]
-  hyp_pref <- data.table::copy(drive[exposure == "hypoxia_24H"])
-  hyp_alt <- data.table::copy(
-    drive[exposure == "hypoxia_6H" &
-            !paste(species, gene) %in% hyp_pref[, paste(species, gene)]]
-  )
-  three <- rbindlist(list(
-    data.table::copy(drive[exposure %in% c("heat", "cold")]),
-    hyp_pref[, exposure := "hypoxia"],
-    hyp_alt[, exposure := "hypoxia"]
-  ))
-  hmp_by_species <- function(dt, L) {
-    rbindlist(lapply(split(dt, by = "species"), function(spdt) {
-      wide <- dcast(spdt, gene ~ exposure, value.var = c("p", "lfc"))
-      p_cols <- grep("^p_", names(wide), value = TRUE)
-      lfc_cols <- grep("^lfc_", names(wide), value = TRUE)
-      rows <- lapply(seq_len(nrow(wide)), function(i) {
-        pv <- unlist(wide[i, ..p_cols], use.names = FALSE)
-        ev <- unlist(wide[i, ..lfc_cols], use.names = FALSE)
-        h <- hmp_twosided(pv, ev, L = L)
-        data.table(
-          gene = wide$gene[i], hmp_p = h$p, hmp_dir = h$dir,
-          n_arm = h$n, frac_agree = h$frac_agree,
-          lfc_mean = mean(ev[is.finite(ev)])
-        )
-      })
-      out <- rbindlist(rows)
-      out[, species := unique(spdt$species)]
-      out[, hmp_padj := p.adjust(hmp_p, method = "BH")]
-      out[, in_cross := is.finite(hmp_padj) & hmp_padj < HMP_PADJ &
-            n_arm >= MIN_N & frac_agree >= SIGN_AGREE]
-      out[, direction := fcase(
-        in_cross & hmp_dir > 0, "up",
-        in_cross & hmp_dir < 0, "down",
-        default = "none"
-      )]
-      out
-    }))
-  }
-  message("Computing species HMP...")
-  h3 <- hmp_by_species(three, L = 3L)
-  h3[, panel := "three_insult"]
-  fwrite(h3, csv3)
+  h24 <- run_panel(drive, "hypoxia_24H", "heat_cold_24h")
+  h6 <- run_panel(drive, "hypoxia_6H", "heat_cold_6h")
+}
+
+hits <- function(h) {
+  h[in_cross == TRUE, .(gene, species, direction, hmp_p, hmp_padj, lfc_mean)]
+}
+both <- merge(hits(h24), hits(h6), by = c("gene", "species", "direction"),
+              suffixes = c("_24h", "_6h"))
+fwrite(both, file.path(OUT, "drive_species_hmp_both_durations.csv"))
+cat("Hits 24h", nrow(hits(h24)), " 6h", nrow(hits(h6)),
+    " both durations, same direction", nrow(both), "\n")
+old_mixed <- file.path(OUT, "drive_species_hmp_three_insult.csv")
+if (file.exists(old_mixed)) {
+  file.remove(old_mixed)
+  message("Removed the 24 h-preferred fill-in table ", basename(old_mixed))
 }
 
 pub <- fread(file.path(RES, "gene_human_mouse_generic.csv"))
@@ -121,82 +141,96 @@ overlap_one <- function(h) {
     )
   }, by = species]
 }
-sum3 <- overlap_one(h3)
-fwrite(sum3, file.path(OUT, "drive_species_hmp_overlap_three_insult.csv"))
+sum24 <- overlap_one(h24)[, panel := "24 h"]
+sum6 <- overlap_one(h6)[, panel := "6 h"]
+fwrite(sum24, file.path(OUT, "drive_species_hmp_overlap_heat_cold_24h.csv"))
+fwrite(sum6, file.path(OUT, "drive_species_hmp_overlap_heat_cold_6h.csv"))
+old_overlap <- file.path(OUT, "drive_species_hmp_overlap_three_insult.csv")
+if (file.exists(old_overlap)) file.remove(old_overlap)
+sum_both <- rbindlist(list(sum24, sum6))
 
 sp_lev <- c(
   "human", "gelada", "rat", "squirrel", "little_brown_bat",
   "honey_badger", "seal", "dolphin", "whale", "rhino",
   "dromedary_camel", "bactrian_camel"
 )
-sum3b <- sum3[species %in% sp_lev]
-sum3b[, species_lab := factor(pretty_species(species),
-                              levels = pretty_species(sp_lev))]
+sum_both <- sum_both[species %in% sp_lev]
+sum_both[, species_lab := factor(pretty_species(species),
+                                 levels = pretty_species(sp_lev))]
+sum_both[, panel := factor(panel, levels = c("24 h", "6 h"))]
 n_long <- melt(
-  sum3b,
-  id.vars = "species_lab",
+  sum_both,
+  id.vars = c("species_lab", "panel"),
   measure.vars = c("n_up", "n_down"),
   variable.name = "direction", value.name = "n"
 )
 n_long[, direction := fifelse(direction == "n_up", "Up", "Down")]
 p_n <- ggplot(n_long, aes(species_lab, n, fill = direction)) +
   geom_col(width = 0.72, color = "grey25", linewidth = 0.3) +
+  facet_wrap(~ panel, ncol = 1) +
   scale_fill_manual(values = c(Up = unname(gradient_high),
                                Down = unname(gradient_low)), name = NULL) +
   labs(
     title = "Drive cross-perturbation genes, per species",
-    subtitle = "HMP of heat, cold, and hypoxia. Same rule as the public generic: BH HMP < 0.05, >=3 arms, >=80% sign.",
+    subtitle = "Two tests: heat + cold + 24 h, and heat + cold + 6 h. BH HMP < 0.05 and all three signs agree.",
     x = NULL, y = "Genes"
   ) +
   theme_pub(13) +
   theme(axis.text.x = element_text(angle = 40, hjust = 1),
         legend.position = "bottom")
-save_png(p_n, "species_hmp_counts.png", 9.2, 5.6)
+save_png(p_n, "species_hmp_counts.png", 9.2, 8.4)
 
-p_ov <- ggplot(sum3b, aes(species_lab, frac_of_cross_in_public)) +
+p_ov <- ggplot(sum_both, aes(species_lab, frac_of_cross_in_public)) +
   geom_col(width = 0.72, fill = unname(treatment_colors["stress"]),
            color = "grey25", linewidth = 0.3) +
-  geom_text(aes(label = sprintf("%d / %d\n(%.0f%%)",
-                                n_in_public_generic, n_cross,
-                                100 * frac_of_cross_in_public)),
-            vjust = -0.15, size = 2.9, fontface = "bold", lineheight = 0.95) +
+  facet_wrap(~ panel, ncol = 1) +
   coord_cartesian(ylim = c(0, 0.28)) +
   labs(
     title = "Most species-cross-perturbation genes are not the public generic",
-    subtitle = "Each bar = (genes in the public 1,344) / (genes called by that species' heat+cold+hypoxia HMP). Human 204/3612 is 6%.",
-    x = NULL, y = "Public 1,344 / species HMP list"
+    subtitle = "Each bar = genes in the public generic / that species' heat + cold + hypoxia list.",
+    x = NULL, y = "Public generic / species HMP list"
   ) +
   theme_pub(12) +
   theme(axis.text.x = element_text(angle = 40, hjust = 1))
-save_png(p_ov, "species_hmp_vs_public.png", 9.4, 5.8)
+save_png(p_ov, "species_hmp_vs_public.png", 9.4, 8.2)
 
 # -----------------------------------------------------------------------------
 # Conservation across Drive species
 # -----------------------------------------------------------------------------
-x <- h3[in_cross == TRUE]
-cons <- x[, .(
-  n_species = uniqueN(species),
-  n_up = sum(direction == "up"),
-  n_down = sum(direction == "down"),
-  mean_lfc = mean(lfc_mean, na.rm = TRUE)
-), by = gene]
-cons[, frac_maj := pmax(n_up, n_down) / n_species]
-cons[, direction := fifelse(n_up >= n_down, "up", "down")]
-cons[, conserved5 := n_species >= N_SP_CONS & frac_maj >= SIGN_AGREE]
-cons[, in_public_generic := gene %in% pub_gen$gene]
-cons <- merge(cons, pub_gen, by = "gene", all.x = TRUE)
-fwrite(cons, file.path(OUT, "drive_species_hmp_conservation.csv"))
-
-cat("\nConservation (in_cross, 12 Drive species):\n")
-print(table(cons$n_species))
-for (k in c(3L, 5L, 8L, 10L, 12L)) {
-  s <- cons[n_species >= k & frac_maj >= SIGN_AGREE]
-  cat(sprintf(
-    "  >=%d species, >=80%% same dir: %d  (up %d / down %d); public generic %d\n",
-    k, nrow(s), sum(s$direction == "up"), sum(s$direction == "down"),
-    sum(s$in_public_generic)
-  ))
+conserve <- function(h, label) {
+  x <- h[in_cross == TRUE]
+  cons <- x[, .(
+    n_species = uniqueN(species),
+    n_up = sum(direction == "up"),
+    n_down = sum(direction == "down"),
+    mean_lfc = mean(lfc_mean, na.rm = TRUE)
+  ), by = gene]
+  cons[, frac_maj := pmax(n_up, n_down) / n_species]
+  cons[, direction := fifelse(n_up >= n_down, "up", "down")]
+  cons[, conserved5 := n_species >= N_SP_CONS & frac_maj >= SIGN_AGREE]
+  cons[, in_public_generic := gene %in% pub_gen$gene]
+  cons <- merge(cons, pub_gen, by = "gene", all.x = TRUE)
+  cons[, panel := label]
+  fwrite(cons, file.path(OUT, paste0("drive_species_hmp_conservation_", label, ".csv")))
+  cat("\nConservation", label, ":\n")
+  print(table(cons$n_species))
+  for (k in c(3L, 5L, 8L, 10L, 12L)) {
+    s <- cons[n_species >= k & frac_maj >= SIGN_AGREE]
+    cat(sprintf(
+      "  >=%d species, >=80%% same dir: %d  (up %d / down %d); public generic %d\n",
+      k, nrow(s), sum(s$direction == "up"), sum(s$direction == "down"),
+    invisible(cons)
 }
+conserve(h24, "heat_cold_24h")
+conserve(h6, "heat_cold_6h")
+h_both <- both[, .(
+  gene, species, direction, in_cross = TRUE,
+  lfc_mean = rowMeans(cbind(lfc_mean_24h, lfc_mean_6h), na.rm = TRUE)
+)]
+cons <- conserve(h_both, "both_durations")
+x <- h_both[in_cross == TRUE]
+old_cons <- file.path(OUT, "drive_species_hmp_conservation.csv")
+if (file.exists(old_cons)) invisible(file.remove(old_cons))
 
 n_sp <- as.integer(uniqueN(x$species))
 hist_df <- cons[, .N, by = n_species]
@@ -208,8 +242,8 @@ p_cons <- ggplot(hist_df, aes(n_species, N)) +
   labs(
     title = "Most Drive cross-perturbation genes are species-restricted",
     subtitle = sprintf(
-      "%d genes in >=5 species with >=80%% direction. None in all %d species. %d of the >=5 set are in the public 1,344.",
-      sum(cons$conserved5), n_sp, sum(cons$conserved5 & cons$in_public_generic)
+      "Genes that pass both the 24 h test and the 6 h test. %d in >=5 species. %d of that set are in the public generic.",
+      sum(cons$conserved5), sum(cons$conserved5 & cons$in_public_generic)
     ),
     x = "Drive species calling the gene", y = "Genes"
   ) +
@@ -241,7 +275,7 @@ pw <- c(
          unique)
 )
 names(pw) <- ifelse(duplicated(names(pw)), paste0(names(pw), "_dup"), names(pw))
-universe <- unique(h3$gene)
+universe <- unique(c(h24$gene, h6$gene))
 
 ora_dir <- function(genes, label) {
   genes <- unique(genes)
@@ -309,7 +343,7 @@ p_ora <- ggplot(keep, aes(signed, name, fill = set, shape = collection)) +
   scale_shape_manual(values = c(Hallmark = 21, Reactome = 22, `GO BP` = 23), name = NULL) +
   labs(
     title = "Hypoxia / glycolysis up, sterol biosynthesis down",
-    subtitle = sprintf("ORA of Drive cross-perturbation genes conserved in >=5 species (%d up, %d down).",
+    subtitle = sprintf("ORA of genes that pass both duration tests and are conserved in >=5 species (%d up, %d down).",
                        length(up5), length(dn5)),
     x = "signed −log10(FDR)  (down ← 0 → up)", y = NULL,
     caption = sig_caption

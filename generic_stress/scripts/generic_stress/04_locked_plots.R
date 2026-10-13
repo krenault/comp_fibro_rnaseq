@@ -54,8 +54,21 @@ asg <- read_csv(file.path(RES, "drive_conserved_assignment.csv"), show_col_types
 mam <- read_csv(file.path(RES, "gene_human_mouse_generic.csv"), show_col_types = FALSE)
 gsea_pw <- read_csv(file.path(RES, "cell_meta_gsea_hallmark_reactome_gobp.csv"),
                     show_col_types = FALSE)
-jac <- read_csv(file.path(RES, "cell_meta_celltype_jaccard.csv"), show_col_types = FALSE)
+if ("pathway" %in% names(gsea_pw) && !"name" %in% names(gsea_pw)) {
+  gsea_pw <- rename(gsea_pw, name = pathway)
+}
 inv <- read_csv(file.path(RES, "cell_meta_contrasts.csv"), show_col_types = FALSE)
+n_generic <- sum(mam$in_generic %in% TRUE)
+n_up <- sum(mam$in_generic %in% TRUE & mam$direction == "up")
+n_dn <- sum(mam$in_generic %in% TRUE & mam$direction == "down")
+n_contr <- nrow(inv)
+n_gse <- n_distinct(inv$gse_id)
+fib_pat <- "fibroblast|WI-38|MRC5|IMR90|HLF|HPF|HDF|NIH 3T3|NIH3T3|MEF"
+n_fib_hyp <- inv %>%
+  filter(stress_class == "hypoxia",
+         str_detect(paste(cell_type, tissue), regex(fib_pat, ignore_case = TRUE))) %>%
+  distinct(gse_id) %>%
+  nrow()
 
 # -----------------------------------------------------------------------------
 # Discovery inventory
@@ -78,7 +91,10 @@ p_disc <- ggplot(inv2, aes(class_lab, n, fill = source)) +
                     name = NULL) +
   labs(
     title = "Public discovery is four ASTRA classes only",
-    subtitle = "108 contrasts / 59 GSE. ASTRA = heat, H2O2, hypoxia, UV. Extra GEO fills mouse + a few human fibroblasts.",
+    subtitle = sprintf(
+      "%d contrasts / %d GSE. ASTRA = heat, H2O2, hypoxia, UV. Extra GEO fills mouse + fibroblast hypoxia (%d GSE: GSE139963, GSE281533, GSE328685, GSE282023).",
+      n_contr, n_gse, n_fib_hyp
+    ),
     x = NULL, y = "Contrasts"
   ) +
   theme_pub(13) +
@@ -132,7 +148,7 @@ p_pw <- ggplot(pw, aes(NES, axis)) +
   scale_shape_manual(values = c(Hallmark = 21, Reactome = 22, `GO BP` = 23),
                      name = NULL) +
   labs(
-    title = "Public generic CSR: mitosis off, p53 / hypoxia / ISR on",
+    title = "Public generic CSR: hypoxia / glycolysis up, sterol biosynthesis down",
     subtitle = "Hallmark, Reactome, and GO BP combined. Redundant cell-cycle terms collapsed.",
     x = "NES", y = NULL, caption = sig_caption
   ) +
@@ -155,9 +171,9 @@ pub_all <- unique(mam$gene)
 pub_gen <- unique(mam$gene[mam$in_generic])
 univ <- tibble(
   set = factor(
-    c("Public meta genes", "Public generic (1,344)",
+    c("Public meta genes", sprintf("Public generic (%s)", comma(n_generic)),
       "In Drive (any species)", "Generic in Drive"),
-    levels = c("Public meta genes", "Public generic (1,344)",
+    levels = c("Public meta genes", sprintf("Public generic (%s)", comma(n_generic)),
                "In Drive (any species)", "Generic in Drive")
   ),
   n = c(
@@ -181,7 +197,12 @@ p_univ <- ggplot(univ, aes(set, n)) +
   coord_cartesian(ylim = c(0, max(univ$n) * 1.22)) +
   labs(
     title = "Gene universes overlap — we are not losing the comparison to IDs",
-    subtitle = "74% of public-tested genes and 88% of the 1,344 generic genes appear in at least one Drive file.",
+    subtitle = sprintf(
+      "%.0f%% of public-tested genes and %.0f%% of the %s generic genes appear in at least one Drive file.",
+      100 * length(intersect(pub_all, drive_union)) / length(pub_all),
+      100 * length(intersect(pub_gen, drive_union)) / max(length(pub_gen), 1),
+      comma(n_generic)
+    ),
     x = NULL, y = "Genes"
   ) +
   theme_pub(13)
@@ -313,7 +334,10 @@ p_cold <- ggplot(cold, aes(NES_up, species_lab)) +
   labs(
     title = sprintf("Cold: %d of 12 species induce the full public generic-up list",
                     sum(cold$call == "Induced")),
-    subtitle = "GSEA NES of Drive cold (ranked −log10(p)×sign(LFC)) vs the 737 public generic-up genes. Cold is not in ASTRA, so the gene set includes public heat.",
+    subtitle = sprintf(
+      "GSEA NES of Drive cold (ranked −log10(p)×sign(LFC)) vs the %s public generic-up genes. Cold is not in ASTRA, so the gene set includes public heat.",
+      comma(n_up)
+    ),
     x = "GSEA NES (public generic-up genes)", y = NULL
   ) +
   theme_pub(13) +
@@ -351,8 +375,11 @@ save_png(p_hum2, "human_vs_others_holdout_nes.png", 8.4, 6.8)
 # -----------------------------------------------------------------------------
 # REML / cell-type sensitivity
 # -----------------------------------------------------------------------------
+jac_path <- file.path(RES, "cell_meta_celltype_jaccard.csv")
+if (file.exists(jac_path)) {
+jac <- read_csv(jac_path, show_col_types = FALSE)
 jac2 <- jac %>%
-  filter(a == "dl_full", b != "dl_full") %>%
+  filter(a == "dl_full", b != "dl_full", n_b > 0) %>%
   mutate(
     lab = recode(
       b,
@@ -363,20 +390,26 @@ jac2 <- jac %>%
     ),
     lab = fct_reorder(lab, jaccard)
   )
+if (nrow(jac2)) {
 p_jac <- ggplot(jac2, aes(jaccard, lab)) +
   geom_col(width = 0.62, fill = unname(treatment_colors["stress"]),
            color = "grey25", linewidth = 0.35) +
-  geom_text(aes(label = sprintf("Jaccard %.2f   %d of %d genes in this list are in the 1,344",
+  geom_text(aes(label = sprintf("Jaccard %.2f   %d of %d genes in this list are in the pan-cell generic",
                                 jaccard, n_shared, n_b)),
             hjust = -0.02, fontface = "bold", size = 3.2) +
   coord_cartesian(xlim = c(0, 1.55)) +
   labs(
-    title = "The 1,344-gene list is stable in direction, not in membership",
-    subtitle = "Each bar is an alternative generic list vs the published 1,344. Jaccard 1 = identical set. No genes flip sign under REML. Fibroblast-only hypoxia is only 3 GSE.",
-    x = "Jaccard overlap with the 1,344-gene list", y = NULL
+    title = "The pan-cell generic list is stable in direction, not in membership",
+    subtitle = sprintf(
+      "Each bar is an alternative generic list vs the current pan-cell HMP (%s genes). Jaccard 1 = identical set. Fibroblast hypoxia GSE in discovery: %d. Genome-wide rma.mv is optional (RUN_RMAMV=1).",
+      comma(n_generic), n_fib_hyp
+    ),
+    x = "Jaccard overlap with the pan-cell generic list", y = NULL
   ) +
   theme_pub(12)
 save_png(p_jac, "reml_celltype_overlap.png", 9.4, 5.2)
+}
+}
 
 writeLines(c(
   "# Generic-stress figures",
@@ -384,18 +417,18 @@ writeLines(c(
   "This folder is the paper set. No locked/ numbering.",
   "",
   "discovery_classes — public ASTRA/GEO contrasts by class",
-  "public_pathways — Hallmark + Reactome + GO BP GSEA of the 1,344",
+  "public_pathways — Hallmark + Reactome + GO BP GSEA of the pan-cell generic list",
   "gene_universe — public vs Drive ID overlap",
   "conserved_overlap — conserved Drive genes vs public generic",
   "holdout_scorecard — Drive vs class-held-out public up-genes; strip = classes in the HMP set",
   "unmatched_ox_dna_scorecard — same H2O2+UV gene set on every Drive contrast",
-  "cold_forest — GSEA NES of Drive cold vs the 737 public generic-up genes",
+  "cold_forest — GSEA NES of Drive cold vs the public generic-up genes",
   "human_vs_others_holdout_nes — GSEA NES of each Drive contrast vs the held-out public generic-up set",
-  "reml_celltype_overlap — Jaccard of alternative generic lists vs the 1,344",
+  "reml_celltype_overlap — Jaccard of alternative generic lists vs the pan-cell generic",
   "volcano_<species> — Drive DEGs; labels = padj<0.05 AND public generic",
   "drive_lfc_density — median Drive LFC, generic vs other genes",
   "species_hmp_counts — per-species heat+cold+hypoxia HMP counts",
-  "species_hmp_vs_public — numerator = genes in public 1,344; denominator = that species HMP list",
+  "species_hmp_vs_public — numerator = genes in the public generic; denominator = that species HMP list",
   "species_hmp_conservation — how many Drive species call each gene",
   "species_hmp_conserved_ora — ORA of the ≥5-species core"
 ), file.path(PLOT_DIR, "README.md"))

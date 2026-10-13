@@ -30,6 +30,10 @@ write_hum <- function(res, map, dataset, panel, comparison, method) {
 }
 
 run_one <- function(label, expr) {
+  only <- Sys.getenv("GEO_ONLY", unset = "")
+  if (nzchar(only) && !grepl(only, label)) {
+    return(invisible(NULL))
+  }
   cat("\n======== ", label, " ========\n", sep = "")
   tryCatch(expr, error = function(e) {
     message("FAILED ", label, ": ", conditionMessage(e))
@@ -232,5 +236,63 @@ run_one("GSE205381 MEF panel n=1 (abundance LFC)", {
   }
 })
 
+# -----------------------------------------------------------------------------
+# WT tendon fibroblasts, 1% vs 20% O2. Drop HIF1α cKO and Cre-gesicle arms.
+# Count columns are library IDs; titles from the GEO series matrix:
+#   Ctrl_20_01/02/03 = 13107-SS-1 / SS-2 / SS-3
+#   Ctrl_1_01/02/03  = 13107-SS-10 / SS-11 / SS-12
+run_one("GSE328685 WT tendon fibroblast hypoxia (counts)", {
+  f <- download_geo_suppl(
+    "GSE328685", "GSE328685_03_inVitro_RNA-seq_GeneCounts.txt.gz", RAW
+  )
+  d <- read_tsv(f, show_col_types = FALSE)
+  gene_col <- if ("gene_id" %in% names(d)) "gene_id" else names(d)[1]
+  nor <- c("13107-SS-1", "13107-SS-2", "13107-SS-3")
+  hyp <- c("13107-SS-10", "13107-SS-11", "13107-SS-12")
+  miss <- setdiff(c(nor, hyp), names(d))
+  if (length(miss)) stop("missing count columns: ", paste(miss, collapse = ", "))
+  mat <- as.matrix(d[, c(nor, hyp), drop = FALSE])
+  mode(mat) <- "numeric"
+  mat[!is.finite(mat)] <- 0
+  mat <- round(mat)
+  rownames(mat) <- strip(d[[gene_col]])
+  group <- ifelse(colnames(mat) %in% hyp, "hypoxia", "control")
+  res <- run_deseq_pair(mat, group, "hypoxia")
+  map <- map_mouse_ids_to_ensg(res$gene_raw)
+  write_hum(
+    res, map, "GSE328685_tendon_fibroblast_hypoxia_vs_normoxia",
+    "hypoxia", "WT_1pct_vs_20pct", "DESeq2"
+  )
+})
+
+# -----------------------------------------------------------------------------
+# Immortalized mouse fibroblasts, WT 1% vs 21% O2 24 h. Drop mir210 KO.
+# Author-normalized integer table; DESeq2 on rounded values, method flagged
+# so 02 inflates SE 1.5× (n=2 and not raw counts).
+run_one("GSE282023 WT immortalized fibroblast hypoxia (normalized counts)", {
+  f <- download_geo_suppl(
+    "GSE282023", "GSE282023_NormalizedTableCount_RNA.txt.gz", RAW
+  )
+  d <- read_tsv(f, show_col_types = FALSE)
+  gene_col <- names(d)[1]
+  nor <- grep("^WT_NX_", names(d), value = TRUE)
+  hyp <- grep("^WT_HX_", names(d), value = TRUE)
+  if (length(nor) < 2L || length(hyp) < 2L) {
+    stop("WT NX/HX columns: nor=", length(nor), " hyp=", length(hyp))
+  }
+  mat <- as.matrix(d[, c(nor, hyp), drop = FALSE])
+  mode(mat) <- "numeric"
+  mat[!is.finite(mat)] <- 0
+  mat <- round(pmax(mat, 0))
+  rownames(mat) <- strip(d[[gene_col]])
+  group <- ifelse(colnames(mat) %in% hyp, "hypoxia", "control")
+  res <- run_deseq_pair(mat, group, "hypoxia")
+  map <- map_mouse_ids_to_ensg(res$gene_raw)
+  write_hum(
+    res, map, "GSE282023_immortalized_fibroblast_hypoxia_vs_normoxia",
+    "hypoxia", "WT_1pct_vs_21pct_24h", "DESeq2_normalized"
+  )
+})
+
 cat("\nDone. New mouse files:\n")
-print(list.files(OUT, pattern = "GSE(215293|243284|197536|281390|66286|114086|171871|205381)"))
+print(list.files(OUT, pattern = "GSE(215293|243284|197536|281390|66286|114086|171871|205381|328685|282023)"))

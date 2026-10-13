@@ -11,12 +11,9 @@ Production DGE is **pairwise**: one DESeq2 fit per contrast (e.g. 2.5 mM vs 8 mM
 ## Layout
 
 ```
-scripts/prepDE.py            StringTie helper (Pertea lab)
-scripts/process_stringtie.sh copy GTFs from a remote host, run prepDE
-scripts/prepare_counts.py    stack species, collapse orthologs, TPM sample filter
-scripts/run_deseq2.R         pairwise DESeq2
-config.example.env           copy to .env (gitignored)
-generic_stress/              scripts for public 4-class CSR vs held-out Drive
+scripts/                     StringTie → ortholog counts → pairwise DESeq2
+generic_stress/              public 4-class signature vs held-out Drive
+                             drive_dge/, results/, plots/, raw/ live here and are not committed
 ```
 
 ## Setup

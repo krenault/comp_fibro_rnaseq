@@ -22,3 +22,4 @@ generic_stress/plots/
 generic_stress/drive_dge/
 generic_stress/archive.tar
 generic_stress/.venv_gdown/
+generic_stress/logs/

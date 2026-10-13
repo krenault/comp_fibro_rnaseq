@@ -109,7 +109,10 @@ plot_species <- function(sp) {
     coord_cartesian(xlim = c(-4.5, 4.5), ylim = c(0, 20)) +
     labs(
       title = paste0(pretty_species(sp), " Drive volcano"),
-      subtitle = "Grey = not in the public 1,344. Purple = public generic. Labels = padj < 0.05 AND public generic (top 8 per panel by |LFC| × −log10(p)).",
+      subtitle = sprintf(
+        "Grey = not in the public generic (%s genes). Purple = public generic. Labels = padj < 0.05 AND public generic (top 8 per panel by |LFC| x -log10(p)).",
+        scales::comma(nrow(gen))
+      ),
       x = "Drive log2 fold change",
       y = expression(-log[10](italic(p)))
     ) +

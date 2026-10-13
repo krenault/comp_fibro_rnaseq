@@ -32,12 +32,21 @@ suppressPackageStartupMessages({
 source(file.path(.here, "..", "shared", "root.R"))
 source("scripts/shared/plot_aesthetics.R")
 source("scripts/shared/geo_helpers.R")
+source("scripts/shared/hmp_twosided.R")
 
 OUT <- file.path(ROOT, "results/mammalian_generic_stress")
+if (nzchar(Sys.getenv("HMP_OUT"))) OUT <- Sys.getenv("HMP_OUT")
 dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
+PRIMARY_OUT <- file.path(ROOT, "results/mammalian_generic_stress")
+
+DROP_GSE <- strsplit(Sys.getenv("DROP_GSE", unset = ""), "[,;[:space:]]+")[[1]]
+DROP_GSE <- DROP_GSE[nzchar(DROP_GSE)]
+if (length(DROP_GSE)) cat("DROP_GSE:", paste(DROP_GSE, collapse = ", "), "\n")
 
 CLASSES <- c("heat", "hypoxia", "oxidative", "dna_damage")
-NCORES <- max(1L, parallel::detectCores() - 1L)
+NCORES <- min(4L, max(1L, parallel::detectCores() - 1L))
+if (nzchar(Sys.getenv("HMP_CORES"))) NCORES <- max(1L, as.integer(Sys.getenv("HMP_CORES")))
+Sys.setenv(OMP_NUM_THREADS = "1", OPENBLAS_NUM_THREADS = "1", VECLIB_MAXIMUM_THREADS = "1")
 TOP_K <- 250L
 SIGN_AGREE <- 0.80
 HMP_PADJ <- 0.05
@@ -52,42 +61,6 @@ se_from_p <- function(ec, p) {
   se <- abs(as.numeric(ec)) / pmax(z, 1e-8)
   se[!is.finite(se) | se <= 0] <- NA_real_
   se
-}
-
-# Direction-aware harmonic mean p (Yoon / Wilson, as in the Cell paper).
-# Landau tail via pgamma approximation of the HMP null for small L is
-# conservative enough after BH; if harmonicmeanp is present, use it.
-hmp_twosided <- function(p, sign_ec, L = length(p)) {
-  ok <- is.finite(p) & is.finite(sign_ec) & p > 0
-  p <- p[ok]; s <- sign(sign_ec[ok])
-  if (length(p) < 2L) return(list(p = NA_real_, dir = 0, n = length(p), frac_agree = NA_real_))
-  s[s == 0] <- 1
-  one_pos <- ifelse(s > 0, pmin(pmax(p / 2, 1e-300), 1 - 1e-16),
-                    pmin(pmax(1 - p / 2, 1e-300), 1 - 1e-16))
-  one_neg <- ifelse(s < 0, pmin(pmax(p / 2, 1e-300), 1 - 1e-16),
-                    pmin(pmax(1 - p / 2, 1e-300), 1 - 1e-16))
-  hmp_one <- function(ps) {
-    if (requireNamespace("harmonicmeanp", quietly = TRUE)) {
-      as.numeric(harmonicmeanp::p.hmp(ps, w = rep(1 / length(ps), length(ps)), L = L, multilevel = FALSE))
-    } else {
-      h <- length(ps) / sum(1 / ps)
-      # Wilson 2019 Landau location log(L)+γ, scale π/2; p ≈ 1−F_Landau(1/h)
-      mu <- log(L) + 1 - digamma(1)
-      sig <- pi / 2
-      z <- (1 / h - mu) / sig
-      # Landau CDF via the stable-distribution relation used by FMStable/pEstable
-      # Fallback: 2*h (anti-conservative) then BH across genes.
-      min(1, max(h, stats::pnorm(z, lower.tail = FALSE) * 1.5))
-    }
-  }
-  pp <- hmp_one(one_pos)
-  pn <- hmp_one(one_neg)
-  if (!is.finite(pp)) pp <- 1
-  if (!is.finite(pn)) pn <- 1
-  if (pp <= pn) list(p = min(1, 2 * pp), dir = 1, n = length(p),
-                     frac_agree = mean(s > 0))
-  else list(p = min(1, 2 * pn), dir = -1, n = length(p),
-            frac_agree = mean(s < 0))
 }
 
 fisher_twosided <- function(p, sign_ec) {
@@ -105,10 +78,9 @@ fisher_twosided <- function(p, sign_ec) {
 # Two-stage random-effects (Cell: EC+SE into metafor; random study term).
 # Stage 1: inverse-variance collapse of records within GSE (dose/time/cell
 #   from the same study). Stage 2: REML rma() across GSE (DL/EE fallback).
-# Full rma.mv REML with crossed tissue/species intercepts is the paper's
-# model but is too slow for ~15k genes × 15 signatures; univariate REML
-# on GSE-level estimates still uses SE. Cell-type sensitivities and the
-# DL-vs-REML concordance live in scripts/generic_stress/06_reml_celltype.R.
+# Univariate REML (metafor::rma on GSE-collapsed ECs) runs locally in
+# 06_reml_celltype.R. Genome-wide rma.mv with crossed tissue/species
+# intercepts is optional (RUN_RMAMV=1) and is the server-scale step.
 fit_rma <- function(d) {
   d <- d[is.finite(yi) & is.finite(vi) & vi > 0]
   if (nrow(d) < 3L) return(NULL)
@@ -145,7 +117,18 @@ meta_by_gene <- function(dt, min_n = 3L, label = "") {
   keep <- vapply(spl, nrow, integer(1)) >= min_n
   spl <- spl[keep]
   cat("    genes with n>=", min_n, ": ", length(spl), "  cores=", NCORES, "\n", sep = "")
-  res <- parallel::mclapply(spl, fit_rma, mc.cores = NCORES)
+  n_g <- length(spl)
+  if (!n_g) return(data.table())
+  res <- vector("list", n_g)
+  names(res) <- names(spl)
+  bs <- 300L
+  for (i in seq(1L, n_g, by = bs)) {
+    j <- min(n_g, i + bs - 1L)
+    res[i:j] <- parallel::mclapply(
+      spl[i:j], fit_rma, mc.cores = NCORES, mc.preschedule = TRUE
+    )
+    if (i == 1L || (j %% 3000L) < bs) cat("      ", j, "/", n_g, "\n", sep = "")
+  }
   ok <- !vapply(res, is.null, logical(1))
   if (!any(ok)) return(data.table())
   mat <- do.call(rbind, res[ok])
@@ -162,6 +145,18 @@ meta_by_gene <- function(dt, min_n = 3L, label = "") {
   out[, signature := label]
   out[]
 }
+
+RESUME <- identical(Sys.getenv("RESUME_MIXED"), "1")
+long_rds <- Sys.getenv("LONG_RDS", unset = "")
+if (!nzchar(long_rds)) {
+  long_rds <- file.path(if (RESUME) PRIMARY_OUT else OUT, "cell_meta_ec_long.rds")
+}
+
+if (RESUME && file.exists(long_rds)) {
+  cat("=== Resume mixed-effect from cell_meta_ec_long.rds ===\n")
+  long <- as.data.table(readRDS(long_rds))
+  cat("Contrasts:", uniqueN(long$dataset_id), "  rows:", nrow(long), "\n")
+} else {
 
 # -----------------------------------------------------------------------------
 # 1) Per-contrast EC + SE
@@ -205,19 +200,14 @@ geo_disc <- tribble(
   "GSE197536_NIH3T3_H2O2_2h_vs_ctrl.csv", "mouse_GSE197536_H2O2_2h", "oxidative", "mouse",
   "GSE197536_NIH3T3_H2O2_7h_vs_ctrl.csv", "mouse_GSE197536_H2O2_7h", "oxidative", "mouse",
   "GSE281390_NIH3T3_UVA_vs_ctrl.csv", "mouse_GSE281390_UVA", "dna_damage", "mouse",
-  "GSE66286_NIH3T3_UVC_6h_vs_ctrl.csv", "mouse_GSE66286_UVC", "dna_damage", "mouse",
-  "GSE114086_C2C12_GM_hypoxia_vs_normoxia.csv", "mouse_GSE114086_GM_hyp", "hypoxia", "mouse",
-  "GSE114086_C2C12_DM_hypoxia_vs_normoxia.csv", "mouse_GSE114086_DM_hyp", "hypoxia", "mouse",
-  "GSE171871_mESC_hypoxia_vs_normoxia.csv", "mouse_GSE171871_mESC_hyp", "hypoxia", "mouse",
-  "GSE205381_MEF_hypoxia_vs_ctrl.csv", "mouse_GSE205381_hyp", "hypoxia", "mouse",
-  "GSE205381_MEF_oxidative_vs_ctrl.csv", "mouse_GSE205381_ox", "oxidative", "mouse",
+  "GSE328685_tendon_fibroblast_hypoxia_vs_normoxia.csv", "mouse_GSE328685_hyp", "hypoxia", "mouse",
+  "GSE282023_immortalized_fibroblast_hypoxia_vs_normoxia.csv", "mouse_GSE282023_hyp", "hypoxia", "mouse",
   "GSE281533_human_hypoxia_vs_normoxia.csv", "human_GSE281533_hyp", "hypoxia", "human",
   "GSE139963_human_hypoxia_vs_PBS.csv", "human_GSE139963_hyp", "hypoxia", "human",
-  "GSE225095_IMR90_H2O2_vs_Prolif.csv", "human_GSE225095_H2O2", "oxidative", "human",
   "GSE262772_human_HDF_20Gy_vs_Con_24h.csv", "human_GSE262772_20Gy", "dna_damage", "human"
 )
 
-meta <- as.data.table(read_tsv(file.path(OUT, "discovery_metadata.tsv"), show_col_types = FALSE))
+meta <- as.data.table(read_tsv(file.path(PRIMARY_OUT, "discovery_metadata.tsv"), show_col_types = FALSE))
 
 geo_long <- rbindlist(lapply(seq_len(nrow(geo_disc)), function(i) {
   r <- geo_disc[i, ]
@@ -247,7 +237,7 @@ geo_long <- rbindlist(lapply(seq_len(nrow(geo_disc)), function(i) {
   }
   # author-sig-only / n=1: inflate SE so they cannot dominate ASTRA
   meth <- ifelse(is.na(method) || !nzchar(method), "", method)
-  if (grepl("author_DESeq|log2abund_n1|log2FPKM|log2RPKM|log2Cuff", meth)) {
+  if (grepl("author_DESeq|log2abund_n1|log2FPKM|log2RPKM|log2Cuff|DESeq2_normalized", meth)) {
     out[, se := se * 1.5]
   }
   if (r$dataset_id %in% c("mouse_GSE205381_hyp", "mouse_GSE205381_ox", "mouse_GSE66286_UVC")) {
@@ -406,11 +396,24 @@ long <- merge(long, scale_tbl, by = "dataset_id", all.x = TRUE)
 long[is.na(deming_s), deming_s := 1]
 long[, `:=`(yi = yi * deming_s, se = se * deming_s, vi = (se)^2)]
 saveRDS(long, file.path(OUT, "cell_meta_ec_long.rds"))
+}  # end !RESUME
+
+if (length(DROP_GSE) && exists("long")) {
+  n0 <- uniqueN(long$gse_id)
+  long <- long[!gse_id %in% DROP_GSE]
+  cat("After DROP_GSE: GSE=", uniqueN(long$gse_id), " (was ", n0, ") contrasts=",
+      uniqueN(long$dataset_id), "\n", sep = "")
+}
 
 # -----------------------------------------------------------------------------
 # 4) Mixed-effect signatures
 # -----------------------------------------------------------------------------
 cat("=== Mixed-effect signatures ===\n")
+sigs_rds <- file.path(OUT, "cell_meta_signatures.rds")
+if (identical(Sys.getenv("RESUME_SIGS"), "1") && file.exists(sigs_rds)) {
+  cat("  resuming signatures from ", basename(sigs_rds), "\n", sep = "")
+  sigs <- as.data.table(readRDS(sigs_rds))
+} else {
 sig_list <- list()
 
 for (cl in CLASSES) {
@@ -436,7 +439,10 @@ for (sp in c("human", "mouse")) {
 }
 
 sigs <- rbindlist(sig_list, fill = TRUE)
+saveRDS(sigs, sigs_rds)
 fwrite(sigs, file.path(OUT, "cell_meta_signatures.csv"))
+}  # end !RESUME_SIGS
+if (!exists("sigs") || !nrow(sigs)) sigs <- as.data.table(readRDS(sigs_rds))
 cat("Signature sizes (padj<0.05):\n")
 print(sigs[, .(n_sig = sum(significant), n_up = sum(significant & ec > 0),
                n_dn = sum(significant & ec < 0)), by = signature])
@@ -474,12 +480,19 @@ generic[, direction := fcase(
 # species-generic: HMP of human_* and mouse_* class signatures
 species_hmp <- function(sp) {
   labs <- paste(sp, CLASSES, sep = "_")
-  w <- dcast(sigs[signature %in% labs, .(gene, signature, p, ec)],
-             gene ~ signature, value.var = c("p", "ec"))
-  pc <- paste0("p_", labs); ec <- paste0("ec_", labs)
+  sub <- sigs[signature %in% labs, .(gene, signature, p, ec)]
+  empty <- data.table(
+    gene = character(), p = numeric(), dir = numeric(), n = integer(),
+    frac_agree = numeric(), ec_mean = numeric()
+  )
+  if (!nrow(sub)) return(empty)
+  w <- dcast(sub, gene ~ signature, value.var = c("p", "ec"))
+  pc <- paste0("p_", labs)
+  ecc <- paste0("ec_", labs)
+  for (nm in c(pc, ecc)) if (!nm %in% names(w)) w[, (nm) := NA_real_]
   rbindlist(lapply(seq_len(nrow(w)), function(i) {
     pv <- unlist(w[i, ..pc], use.names = FALSE)
-    ev <- unlist(w[i, ..ec], use.names = FALSE)
+    ev <- unlist(w[i, ..ecc], use.names = FALSE)
     h <- hmp_twosided(pv, ev, L = 4L)
     data.table(gene = w$gene[i], p = h$p, dir = h$dir, n = h$n,
                frac_agree = h$frac_agree, ec_mean = mean(ev, na.rm = TRUE))
@@ -544,6 +557,12 @@ fisher_tbl <- rbindlist(lapply(CLASSES, function(cl) {
 }))
 
 fwrite(sigs, file.path(OUT, "cell_meta_signatures.csv"))
+archive_1344 <- file.path(OUT, "mammalian_generic_genes_pre_fibro_hypoxia.csv")
+live_gen <- file.path(OUT, "mammalian_generic_genes.csv")
+if (file.exists(live_gen) && !file.exists(archive_1344)) {
+  ok <- file.copy(live_gen, archive_1344, overwrite = FALSE)
+  if (isTRUE(ok)) cat("Archived pre-expansion generic list to ", basename(archive_1344), "\n", sep = "")
+}
 fwrite(mam, file.path(OUT, "gene_human_mouse_generic.csv"))
 fwrite(mam[in_generic == TRUE], file.path(OUT, "mammalian_generic_genes.csv"))
 fwrite(mam[in_mammalian == TRUE], file.path(OUT, "mammalian_generic_both_species.csv"))
@@ -562,6 +581,105 @@ cat("Generic HMP:", sum(mam$in_generic),
 cat("Both-species generic:", sum(mam$in_mammalian, na.rm = TRUE), "\n")
 cat("Class-specific:\n")
 print(class_sp[in_class_specific == TRUE, .N, by = stress_class])
+
+# -----------------------------------------------------------------------------
+# 5b) Fibroblast-only mixed-effect + HMP (same rule; Drive-matched cell type)
+# -----------------------------------------------------------------------------
+cat("=== Fibroblast-only mixed-effect + HMP ===\n")
+fib_csv <- file.path(OUT, "gene_fibroblast_generic.csv")
+if (identical(Sys.getenv("SKIP_FIBRO"), "1") && file.exists(fib_csv)) {
+  cat("Skipping fibroblast mixed-effect (SKIP_FIBRO=1); using ", basename(fib_csv), "\n", sep = "")
+  fib_hmp <- fread(fib_csv)
+  long_fib <- if (exists("long")) long[0] else data.table()
+} else {
+fib_pat <- "fibroblast|WI-38|MRC5|IMR90|HLF|HPF|HDF|NIH 3T3|NIH3T3|MEF"
+long_fib <- long[
+  grepl(fib_pat, paste(cell_type, tissue), ignore.case = TRUE) &
+    !grepl("fibroblast-derived neuron", cell_type, ignore.case = TRUE)
+]
+cat("  fibroblast contrasts:", uniqueN(long_fib$dataset_id),
+    "  GSE:", uniqueN(long_fib$gse_id), "\n")
+print(unique(long_fib[, .(gse_id, stress_class, species, cell_type)])[order(stress_class, species, gse_id)])
+
+fib_sig_list <- lapply(CLASSES, function(cl) {
+  meta_by_gene(long_fib[stress_class == cl], min_n = 3L, label = paste0("class_", cl))
+})
+names(fib_sig_list) <- paste0("class_", CLASSES)
+fib_sigs <- rbindlist(fib_sig_list, fill = TRUE)
+fwrite(fib_sigs, file.path(OUT, "cell_meta_signatures_fibroblast.csv"))
+cat("  fibroblast class signatures (padj<0.05):\n")
+print(fib_sigs[, .(n_sig = sum(significant), n_up = sum(significant & ec > 0),
+                   n_dn = sum(significant & ec < 0)), by = signature])
+
+fib_wide <- dcast(
+  fib_sigs[signature %in% paste0("class_", CLASSES), .(gene, signature, p, ec, padj)],
+  gene ~ signature, value.var = c("p", "ec", "padj")
+)
+if (!nrow(fib_wide) || !all(c(p_cols, ec_cols) %in% names(fib_wide))) {
+  message("Fibroblast HMP skipped: need all four class mixed models (check GSE coverage).")
+  fib_hmp <- data.table(
+    gene = character(), hmp_p = numeric(), hmp_dir = numeric(),
+    n_class = integer(), frac_agree = numeric(), ec_mean = numeric(),
+    hmp_padj = numeric(), in_generic = logical(), direction = character()
+  )
+} else {
+fib_hmp <- rbindlist(lapply(seq_len(nrow(fib_wide)), function(i) {
+  pv <- unlist(fib_wide[i, ..p_cols], use.names = FALSE)
+  ev <- unlist(fib_wide[i, ..ec_cols], use.names = FALSE)
+  h <- hmp_twosided(pv, ev, L = 4L)
+  data.table(
+    gene = fib_wide$gene[i],
+    hmp_p = h$p, hmp_dir = h$dir, n_class = h$n, frac_agree = h$frac_agree,
+    ec_mean = mean(ev[is.finite(ev)])
+  )
+}))
+fib_hmp[, hmp_padj := p.adjust(hmp_p, method = "BH")]
+fib_hmp[, in_generic := is.finite(hmp_padj) & hmp_padj < HMP_PADJ &
+          n_class >= 3L & frac_agree >= SIGN_AGREE]
+fib_hmp[, direction := fcase(
+  in_generic & hmp_dir > 0, "up",
+  in_generic & hmp_dir < 0, "down",
+  default = "none"
+)]
+}
+}  # end !SKIP_FIBRO
+if (!exists("fib_hmp") || !nrow(fib_hmp)) {
+  if (file.exists(fib_csv)) fib_hmp <- fread(fib_csv)
+}
+fwrite(fib_hmp, file.path(OUT, "gene_fibroblast_generic.csv"))
+fwrite(fib_hmp[in_generic == TRUE], file.path(OUT, "mammalian_generic_fibroblast.csv"))
+cat("  fibroblast-only generic:", sum(fib_hmp$in_generic),
+    " up", sum(fib_hmp$direction == "up"),
+    " down", sum(fib_hmp$direction == "down"), "\n")
+
+jaccard <- function(a, b) {
+  a <- unique(a); b <- unique(b)
+  if (!length(a) && !length(b)) return(1)
+  length(intersect(a, b)) / length(union(a, b))
+}
+pan_ids <- mam[in_generic == TRUE, gene]
+fib_ids <- fib_hmp[in_generic == TRUE, gene]
+old_ids <- if (file.exists(archive_1344)) fread(archive_1344)$gene else character()
+exp_jac <- data.table(
+  comparison = c("pancell_vs_fibroblast", "pancell_vs_pre_fibro_hypoxia", "fibroblast_vs_pre_fibro_hypoxia"),
+  n_a = c(length(pan_ids), length(pan_ids), length(fib_ids)),
+  n_b = c(length(fib_ids), length(old_ids), length(old_ids)),
+  n_shared = c(length(intersect(pan_ids, fib_ids)),
+               length(intersect(pan_ids, old_ids)),
+               length(intersect(fib_ids, old_ids))),
+  jaccard = c(jaccard(pan_ids, fib_ids),
+              jaccard(pan_ids, old_ids),
+              jaccard(fib_ids, old_ids))
+)
+fwrite(exp_jac, file.path(OUT, "generic_expansion_jaccard.csv"))
+cat("  Jaccard pan-cell vs fibroblast-only:",
+    signif(exp_jac$jaccard[1], 3),
+    "  shared", exp_jac$n_shared[1], "\n")
+if (length(old_ids)) {
+  cat("  Jaccard pan-cell vs pre-expansion 1,344:",
+      signif(exp_jac$jaccard[2], 3),
+      "  shared", exp_jac$n_shared[2], "\n")
+}
 
 # -----------------------------------------------------------------------------
 # 6) Ranked generic list (Hallmark + Reactome + GO BP GSEA is written below)
@@ -653,7 +771,9 @@ fwrite(focal_tab, file.path(OUT, "focal_genes.csv"))
 # Plots are drawn by scripts/generic_stress/04_plots.R.
 # Combined Hallmark + Reactome + GO BP GSEA (figure public_pathways).
 gsea_combo <- file.path(OUT, "cell_meta_gsea_hallmark_reactome_gobp.csv")
-if (!file.exists(gsea_combo) && length(rvec) > 200) {
+force_gsea <- identical(Sys.getenv("FORCE_GSEA"), "1") ||
+  (!file.exists(gsea_combo) && !identical(Sys.getenv("SKIP_GSEA"), "1"))
+if (force_gsea && length(rvec) > 200) {
   msig_sets <- function(collection, subcollection = NULL) {
     x <- tryCatch({
       if (is.null(subcollection)) msigdbr::msigdbr(species = "Homo sapiens", collection = collection)

@@ -14,6 +14,7 @@ suppressPackageStartupMessages({
 .here <- if (length(.file)) dirname(normalizePath(.file[[1]])) else getwd()
 source(file.path(.here, "..", "shared", "root.R"))
 source("scripts/shared/plot_aesthetics.R")
+source("scripts/shared/hmp_twosided.R")
 
 RES <- file.path(ROOT, "results/mammalian_generic_stress")
 source("scripts/generic_stress/plot_helpers.R")
@@ -21,34 +22,10 @@ source("scripts/generic_stress/plot_helpers.R")
 CLASSES <- c("heat", "hypoxia", "oxidative", "dna_damage")
 SIGN_AGREE <- 0.80
 HMP_PADJ <- 0.05
-NCORES <- as.integer(Sys.getenv("NCORES", unset = max(1L, parallel::detectCores() - 1L)))
-
-hmp_twosided <- function(p, sign_ec, L = length(p)) {
-  ok <- is.finite(p) & is.finite(sign_ec) & p > 0
-  p <- p[ok]; s <- sign(sign_ec[ok])
-  if (length(p) < 2L) return(list(p = NA_real_, dir = 0, n = length(p), frac_agree = NA_real_))
-  s[s == 0] <- 1
-  one_pos <- ifelse(s > 0, pmin(pmax(p / 2, 1e-300), 1 - 1e-16),
-                    pmin(pmax(1 - p / 2, 1e-300), 1 - 1e-16))
-  one_neg <- ifelse(s < 0, pmin(pmax(p / 2, 1e-300), 1 - 1e-16),
-                    pmin(pmax(1 - p / 2, 1e-300), 1 - 1e-16))
-  hmp_one <- function(ps) {
-    if (requireNamespace("harmonicmeanp", quietly = TRUE)) {
-      as.numeric(harmonicmeanp::p.hmp(ps, w = rep(1 / length(ps), length(ps)),
-                                      L = L, multilevel = FALSE))
-    } else {
-      h <- length(ps) / sum(1 / ps)
-      mu <- log(L) + 1 - digamma(1)
-      z <- (1 / h - mu) / (pi / 2)
-      min(1, max(h, stats::pnorm(z, lower.tail = FALSE) * 1.5))
-    }
-  }
-  pp <- hmp_one(one_pos); pn <- hmp_one(one_neg)
-  if (!is.finite(pp)) pp <- 1
-  if (!is.finite(pn)) pn <- 1
-  if (pp <= pn) list(p = min(1, 2 * pp), dir = 1, n = length(p), frac_agree = mean(s > 0))
-  else list(p = min(1, 2 * pn), dir = -1, n = length(p), frac_agree = mean(s < 0))
-}
+NCORES <- min(4L, max(1L, parallel::detectCores() - 1L))
+if (nzchar(Sys.getenv("HMP_CORES"))) NCORES <- max(1L, as.integer(Sys.getenv("HMP_CORES")))
+if (nzchar(Sys.getenv("NCORES"))) NCORES <- max(1L, as.integer(Sys.getenv("NCORES")))
+Sys.setenv(OMP_NUM_THREADS = "1", OPENBLAS_NUM_THREADS = "1", VECLIB_MAXIMUM_THREADS = "1")
 
 fit_rma <- function(d) {
   d <- d[is.finite(yi) & is.finite(vi) & vi > 0]
@@ -117,7 +94,16 @@ meta_by_gene <- function(dt, min_n = 3L, label = "", fit = fit_rma) {
   keep <- vapply(spl, nrow, integer(1)) >= min_n
   spl <- spl[keep]
   cat("    genes with n>=", min_n, ": ", length(spl), "  cores=", NCORES, "\n", sep = "")
-  res <- parallel::mclapply(spl, fit, mc.cores = NCORES)
+  n_g <- length(spl)
+  if (!n_g) return(data.table())
+  res <- vector("list", n_g)
+  names(res) <- names(spl)
+  bs <- 300L
+  for (i in seq(1L, n_g, by = bs)) {
+    j <- min(n_g, i + bs - 1L)
+    res[i:j] <- parallel::mclapply(spl[i:j], fit, mc.cores = NCORES, mc.preschedule = TRUE)
+    if (i == 1L || (j %% 3000L) < bs) cat("      ", j, "/", n_g, "\n", sep = "")
+  }
   ok <- !vapply(res, is.null, logical(1))
   if (!any(ok)) return(data.table())
   mat <- do.call(rbind, res[ok])
@@ -142,6 +128,15 @@ hmp_generic <- function(sigs, label) {
   )
   p_cols <- paste0("p_class_", CLASSES)
   ec_cols <- paste0("ec_class_", CLASSES)
+  for (nm in c(p_cols, ec_cols)) if (!nm %in% names(wide)) wide[, (nm) := NA_real_]
+  if (!nrow(wide)) {
+    return(data.table(
+      gene = character(), hmp_p = numeric(), hmp_dir = numeric(),
+      n_class = integer(), frac_agree = numeric(), ec_mean = numeric(),
+      hmp_padj = numeric(), in_generic = logical(), direction = character(),
+      panel = character()
+    ))
+  }
   rows <- lapply(seq_len(nrow(wide)), function(i) {
     pv <- unlist(wide[i, ..p_cols], use.names = FALSE)
     ev <- unlist(wide[i, ..ec_cols], use.names = FALSE)
@@ -209,8 +204,8 @@ long[is.na(cell_group), cell_group := "other"]
 cat("Contrasts by group:\n")
 print(contr[, .N, by = cell_group])
 
-# Fast concordance: REML on the existing 1344 generic genes only (all contrasts)
-cat("\n=== Fast REML concordance on the DL generic 1344 ===\n")
+# Fast concordance: REML on the current DL generic genes only (all contrasts)
+cat("\n=== Fast REML concordance on the current DL generic list ===\n")
 old_long <- long[gene %in% old_gen]
 conc_sigs <- rbindlist(lapply(CLASSES, function(cl) {
   meta_by_gene(old_long[stress_class == cl], min_n = 3L, label = paste0("class_", cl))
@@ -234,16 +229,21 @@ sign_tab[, same_sign := sign(reml_mean) == sign(ec_mean) & reml_mean != 0 & ec_m
 cat("  genes remeta'd:", nrow(sign_tab),
     " same sign vs DL EC:", sum(sign_tab$same_sign, na.rm = TRUE),
     sprintf(" (%.1f%%)\n", 100 * mean(sign_tab$same_sign, na.rm = TRUE)))
-fwrite(sign_tab, file.path(RES, "reml_concordance_generic1344.csv"))
+fwrite(sign_tab, file.path(RES, "reml_concordance_generic.csv"))
 
-# Full panels
+# Full panels. Genome-wide rma.mv is optional (RUN_RMAMV=1); univariate REML
+# is the local default and does not need a server.
 panels <- list()
 panels$reml_noc2c12 <- run_panel(long[cell_group != "myoblast"], "reml_noc2c12")
 panels$reml_nocancer <- run_panel(long[cell_group != "cancer" & cell_group != "myoblast"], "reml_nocancer")
 panels$reml_fibroblast <- run_panel(long[cell_group == "fibroblast"], "reml_fibroblast")
-panels$rmamv_noc2c12 <- run_panel(
-  long[cell_group != "myoblast"], "rmamv_noc2c12", fit = fit_rma_mv
-)
+if (identical(Sys.getenv("RUN_RMAMV"), "1")) {
+  panels$rmamv_noc2c12 <- run_panel(
+    long[cell_group != "myoblast"], "rmamv_noc2c12", fit = fit_rma_mv
+  )
+} else {
+  cat("Skipping genome-wide rma.mv (set RUN_RMAMV=1 to run; that is the server-scale step).\n")
+}
 
 all_sigs <- rbindlist(lapply(panels, `[[`, "sigs"), fill = TRUE)
 all_gen <- rbindlist(lapply(panels, `[[`, "gen"), fill = TRUE)
@@ -257,6 +257,7 @@ sets <- list(
   reml_fibroblast = all_gen[panel == "reml_fibroblast" & in_generic == TRUE, gene],
   rmamv_noc2c12 = all_gen[panel == "rmamv_noc2c12" & in_generic == TRUE, gene]
 )
+sets <- sets[names(sets) == "dl_full" | lengths(sets) > 0L]
 nm <- names(sets)
 jac <- rbindlist(lapply(seq_along(nm), function(i) {
   rbindlist(lapply(seq_along(nm), function(j) {
@@ -316,7 +317,10 @@ p <- ggplot(jac_plot, aes(jaccard, lab)) +
   coord_cartesian(xlim = c(0, 1.15)) +
   labs(
     title = "Generic-gene overlap after REML and cell-type filters",
-    subtitle = "Jaccard vs the original DL 1,344-gene HMP list. Primary discovery stays the full multi-cell-type set.",
+    subtitle = sprintf(
+      "Jaccard vs the current pan-cell HMP (%s genes). Primary discovery stays the full multi-cell-type set.",
+      format(length(old_gen), big.mark = ",")
+    ),
     x = "Jaccard overlap", y = NULL
   ) +
   theme_pub(13)
@@ -336,10 +340,11 @@ n_plot <- counts %>%
   pivot_longer(c(n_up, n_down), names_to = "dir", values_to = "n") %>%
   mutate(
     dir = recode(dir, n_up = "Up", n_down = "Down"),
-    lab = factor(lab, levels = c(
-      "DL, all cell types", "REML, drop C2C12",
-      "REML, drop cancer + C2C12", "REML, fibroblast-only",
-      "rma.mv REML, drop C2C12"
+    lab = factor(lab, levels = intersect(
+      c("DL, all cell types", "REML, drop C2C12",
+        "REML, drop cancer + C2C12", "REML, fibroblast-only",
+        "rma.mv REML, drop C2C12"),
+      unique(lab)
     ))
   )
 p2 <- ggplot(n_plot, aes(lab, n, fill = dir)) +
@@ -349,7 +354,10 @@ p2 <- ggplot(n_plot, aes(lab, n, fill = dir)) +
                     name = NULL) +
   labs(
     title = "Generic CSR size under REML and cell-type filters",
-    subtitle = "Fibroblast-only is the Drive-matched check; hypoxia is thin (3 GSE).",
+    subtitle = sprintf(
+      "Fibroblast-only is the Drive-matched check. Fibroblast hypoxia GSE in this matrix: %d.",
+      uniqueN(long[cell_group == "fibroblast" & stress_class == "hypoxia", gse_id])
+    ),
     x = NULL, y = "Generic genes"
   ) +
   theme_pub(13) +
