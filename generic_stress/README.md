@@ -1,13 +1,13 @@
-# Public generic cell stress vs Drive fibroblasts
+# Public generic cell stress
 
-Scripts only for git. Four-class public cellular stress signature (ASTRA + extra
-cell GEO). Drive fibroblasts are held out of discovery, then scored with
-class-holdout GSEA and per-species HMP.
+Four-class cellular stress signature from public data (ASTRA and additional
+cell GEO: heat, hypoxia, oxidative stress, DNA damage). Fibroblast-panel
+contrasts are scored after that signature is fixed, by class-holdout GSEA
+and a per-species harmonic mean.
 
-**Methods:** [METHODS.md](METHODS.md). Drive counting/DESeq2 is the parent
-pipeline in [krenault/comp_fibro_rnaseq](https://github.com/krenault/comp_fibro_rnaseq)
-(this folder lives at `generic_stress/` there). Tables, plots, and DGE CSVs
-are local and are not committed.
+**Methods:** [METHODS.md](METHODS.md). Counting and DESeq2 for the fibroblast
+panel are the parent pipeline in
+[krenault/comp_fibro_rnaseq](https://github.com/krenault/comp_fibro_rnaseq).
 
 ## Run
 
@@ -26,7 +26,7 @@ bash scripts/generic_stress/00_run.sh --ingest # re-download ASTRA + extra GEO
 | `05_species_hmp.R` | per-species Drive HMP, conservation, ORA |
 | `06_reml_celltype.R` | REML / cell-type Jaccard (skip with `SKIP_REML=1`) |
 | `07_sensitivity_compare.R` | drop GSE328685 vs primary (`00_run.sh --sens-328685`) |
-| `share/hmp_combine.R` | standalone HMP; copy this file to share the combination rule |
+| `share/hmp_combine.R` | harmonic-mean combination on a table of tests |
 
 R packages: `R_PACKAGES.txt`. Pull Drive DGE: `bash scripts/pull_drive_dge.sh`.
 
@@ -35,13 +35,12 @@ R packages: `R_PACKAGES.txt`. Pull Drive DGE: `bash scripts/pull_drive_dge.sh`.
 ```
 scripts/generic_stress/                 analysis path (00–07)
 scripts/shared/                         plot theme, ROOT, GEO helpers (HMP wrapper)
-share/hmp_combine.R                     standalone HMP, safe to send alone
-scripts/pull_drive_dge*.sh              sync drive_dge/ from Google Drive
-drive_dge/  results/  plots/  raw/      local only (gitignored)
+share/hmp_combine.R                     harmonic-mean combination
+scripts/pull_drive_dge*.sh              fetch fibroblast-panel differential expression
 ```
 
-## Rules
+## Design
 
-- Drive is held out of discovery. Do not rewrite `drive_dge/`.
-- Glucose is never a Drive comparison.
-- Do not add more same-class GEO or rebuild the primary list as fibroblast-only unless that is a new analysis.
+- The fibroblast panel is not used to choose the public signature.
+- Glucose is not a comparison in that scoring.
+- The primary signature is the pan-cell four-class list. A fibroblast-only list is a separate run.

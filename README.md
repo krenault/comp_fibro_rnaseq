@@ -6,14 +6,13 @@ Reproducible RNA-seq count prep and DESeq2 for a multi-species fibroblast cultur
 
 Production DGE is **pairwise**: one DESeq2 fit per contrast (e.g. 2.5 mM vs 8 mM on those samples alone). Design is `~ individual + treatment`. Gene filter: **≥5 counts in ≥3 samples within the contrast.**
 
-**Generic stress (scripts only):** [generic_stress/README.md](generic_stress/README.md) and [generic_stress/METHODS.md](generic_stress/METHODS.md). Public ASTRA + GEO discovery; Drive held out. Tables, plots, and DGE CSVs are local, not in git.
+**Generic stress:** [generic_stress/README.md](generic_stress/README.md) and [generic_stress/METHODS.md](generic_stress/METHODS.md). A four-class public signature (heat, hypoxia, oxidative stress, DNA damage) is defined first. The fibroblast panel is scored afterward and is not used to choose those genes.
 
 ## Layout
 
 ```
 scripts/                     StringTie → ortholog counts → pairwise DESeq2
-generic_stress/              public 4-class signature vs held-out Drive
-                             drive_dge/, results/, plots/, raw/ live here and are not committed
+generic_stress/              four-class public signature, then fibroblast-panel scoring
 ```
 
 ## Setup
