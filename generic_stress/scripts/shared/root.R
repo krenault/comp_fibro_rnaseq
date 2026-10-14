@@ -31,7 +31,7 @@ ROOT <- flex_root()
 setwd(ROOT)
 
 DRIVE_DGE <- Sys.getenv("DRIVE_DGE", unset = "")
-if (!nzchar(DRIVE_DGE)) DRIVE_DGE <- file.path(ROOT, "drive_dge")
+if (!nzchar(DRIVE_DGE)) DRIVE_DGE <- file.path(dirname(ROOT), "fh_dge", "results", "pairwise")
 DRIVE_DGE <- normalizePath(DRIVE_DGE, mustWork = FALSE)
 
 list_drive_dge <- function() {
@@ -41,5 +41,6 @@ list_drive_dge <- function() {
       "\nPut the pairwise DESeq2 CSVs there, or set DRIVE_DGE."
     )
   }
-  list.files(DRIVE_DGE, pattern = "\\.csv$", full.names = TRUE)
+  files <- list.files(DRIVE_DGE, pattern = "\\.csv$", full.names = TRUE)
+  files[grepl("_(hypoxia|temperature|glucose)_", basename(files))]
 }

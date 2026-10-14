@@ -6,8 +6,7 @@ Tables: `results/mammalian_generic_stress/`.
 
 FH experiment differential expression production (StringTie / prepDE / DESeq2) is the parent pipeline
 ([krenault/comp_fibro_rnaseq](https://github.com/krenault/comp_fibro_rnaseq);
-[METHODS_fh_experiments.md](METHODS_fh_experiments.md)). Query tables: `drive_dge/` or
-`$DRIVE_DGE`.
+[METHODS_fh_experiments.md](METHODS_fh_experiments.md)). Query tables: local `fh_dge/results/pairwise/`, or `$DRIVE_DGE`.
 
 The design is: build a four-class cellular stress signature from public data,
 hold the FH experiments out of discovery, then ask which FH experiment responses recover that
@@ -225,7 +224,7 @@ are run as two tests, not as substitutes for each other:
 - heat + cold + 24 h hypoxia → `drive_species_hmp_heat_cold_24h.csv`
 - heat + cold + 6 h hypoxia → `drive_species_hmp_heat_cold_6h.csv`
 - genes that pass both, in the same direction → `drive_species_hmp_both_durations.csv`
-**
+
 A gene is a species cross-perturbation hit if BH HMP < 0.05, ≥ 3 arms
 measured, and ≥ 80% sign agreement. The *p*-values combined here are that
 species' own DESeq2 *p*-values, not the public class mixed models. BH is
@@ -235,7 +234,7 @@ duration test and for the genes that pass both. Count how many
 species call the gene, and require ≥ 80% of those calls to share direction.
 Headline conserved core: **≥ 5 species**. Over-representation
 (`fgsea::fora`) of the both-durations core, split up/down, uses Hallmark +
-Reactome + GO BP with universe = genes tested in either species HMP.**
+Reactome + GO BP with universe = genes tested in either species HMP.
 ---
 
 ## 10. How to run

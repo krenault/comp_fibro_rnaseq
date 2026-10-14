@@ -3,10 +3,22 @@
 This is **upstream of** the generic-stress analysis. Production scripts live
 in the parent repository:
 [krenault/comp_fibro_rnaseq](https://github.com/krenault/comp_fibro_rnaseq)
-(`scripts/process_stringtie.sh`, `prepare_counts.py`, `run_deseq2.R`).
+(`fh_dge/scripts/process_stringtie.sh`, `prepare_counts.py`, `run_deseq2.R`).
 
-`drive_dge/` holds the pairwise DESeq2 tables for the FH experiments (or set
-`DRIVE_DGE`). Scripts in `scripts/generic_stress/` do not overwrite them.
+The scripts write DESeq2 tables locally under `fh_dge/results/`. Scripts in
+`scripts/generic_stress/` read that folder, or `$DRIVE_DGE`, and do not overwrite it.
+
+- `fh_dge/results/pairwise/` — one fit per contrast. This is the production set. The
+  generic-stress scripts read it (or `$DRIVE_DGE`).
+- `fh_dge/results/all_levels/` — one fit per axis, with every level of that axis in
+  the same model.
+- `fh_dge/results/hypoxia_6H_vs_24H_pairwise/` — hypoxia 6 h versus 24 h as its own
+  fit, using only those two time points. Not the all-levels model, and not
+  used in the generic-stress score.
+- `fh_dge/results/hypoxia_6H_vs_24H_pairwise_fgsea/` — FGSEA of that contrast.
+  Ranking is `sign(log2FC) * -log10(p)`, same gene sets as the other FH
+  experiment enrichments (Hallmark, Reactome, KEGG, GO biological process,
+  PANTHER). A positive NES is enriched among genes higher at 6 h.
 
 ---
 

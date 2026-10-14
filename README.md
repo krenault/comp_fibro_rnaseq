@@ -11,7 +11,13 @@ Production DGE is **pairwise**: one DESeq2 fit per contrast (e.g. 2.5 mM vs 8 mM
 ## Layout
 
 ```
-scripts/                     StringTie → ortholog counts → pairwise DESeq2
+fh_dge/
+  scripts/                   StringTie → ortholog counts → pairwise DESeq2
+  results/
+    pairwise/                one fit per contrast (production; used for scoring)
+    all_levels/              one fit per axis, all levels together
+    hypoxia_6H_vs_24H_pairwise/       6 h versus 24 h, separate fit (0 h not in the model)
+    hypoxia_6H_vs_24H_pairwise_fgsea/  FGSEA of that contrast
 generic_stress/              four-class public signature, then fibroblast-panel scoring
 ```
 
@@ -29,16 +35,16 @@ Needs: Python 3 + pandas; R with `DESeq2`, `tidyverse`; SSH access to the GTF ho
 
 ```bash
 # 1. Remote GTFs → local gene_count_matrix.csv per species × experiment
-bash scripts/process_stringtie.sh
+bash fh_dge/scripts/process_stringtie.sh
 
 # 2. Combine species, collapse to one-to-one ENSG, intersect TPM samples
-python3 scripts/prepare_counts.py \
+python3 fh_dge/scripts/prepare_counts.py \
   --counts-dir "$DATA_DIR" \
   --tpm "$TPM" \
   --out "$DATA_DIR/all_species_all_treatments_one2one_filtered.csv"
 
 # 3. Pairwise DESeq2
-Rscript scripts/run_deseq2.R \
+Rscript fh_dge/scripts/run_deseq2.R \
   --counts "$DATA_DIR/all_species_all_treatments_one2one_filtered.csv" \
   --outdir "$DATA_DIR/DESeq_results_pairwise" \
   --mode pairwise
