@@ -219,7 +219,10 @@ conserve <- function(h, label) {
     cat(sprintf(
       "  >=%d species, >=80%% same dir: %d  (up %d / down %d); public generic %d\n",
       k, nrow(s), sum(s$direction == "up"), sum(s$direction == "down"),
-    invisible(cons)
+      sum(s$in_public_generic)
+    ))
+  }
+  invisible(cons)
 }
 conserve(h24, "heat_cold_24h")
 conserve(h6, "heat_cold_6h")

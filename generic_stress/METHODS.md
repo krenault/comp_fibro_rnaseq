@@ -25,7 +25,7 @@ discovery.
 The public panel has heat and hypoxia as *classes*. FH experiment heat or hypoxia
 recovering the *full* public list is therefore a matched-class positive
 control, not evidence of a class-independent CSR. Honest tests drop the
-matched class from the gene set before scoring the FH experiments (section 6).
+matched class from the gene set before scoring the FH experiments (section 7).
 
 Join key throughout: human Ensembl gene ID (ENSG, version stripped). Mouse
 GEO is mapped to human one-to-one orthologs before meta-analysis.
@@ -64,12 +64,16 @@ manual GEO search, not an API sweep. Series that were the FH experiments, in viv
 cold, OGD/R, or otherwise off-class were recorded as rejected in
 `results/mammalian_generic_stress/other_species_candidates.tsv`.
 Mouse fibroblast hypoxia added after screening: **GSE328685** (WT tendon
-fibroblasts, 1% vs 20% O2 for 4 days) and **GSE282023** (WT immortalized
-fibroblasts, 1% vs 21% 24 h; author-normalized counts, SE inflated 1.5×).
+fibroblasts, 1% vs 20% O2 for 4 days), **GSE282023** (WT immortalized
+fibroblasts, 1% vs 21% 24 h; author-normalized counts, SE inflated 1.5×),
+and **GSE119775** (WT MEFs, 1% vs 20% O2, n = 3 gene counts; tafazzin-knockout
+arm dropped). Mouse DNA damage added from the sample counts of **GSE66286**
+(NIH 3T3, 80 J/m² UV-C vs untreated, 6 h, n = 3). The series-level table of
+significant genes from that study is not used.
 Dropped from discovery after design review: GSE171871 (mESC mesoderm
 specification), GSE114086 (C2C12 differentiation under hypoxia), GSE225095
-(IMR90 H2O2 senescence vs proliferating), GSE66286 (author UVC table, not
-genome-wide), GSE205381 (n=1; arsenite / 0.1% O2). GSE179848 (chronic 3%)
+(IMR90 H2O2 senescence vs proliferating), GSE205381 (n=1; arsenite / 0.1% O2).
+GSE179848 (chronic 3%)
 is held as a separate sensitivity. The FH experiments are never added to discovery.
 A leave-one-series sensitivity drops GSE328685 (`DROP_GSE=GSE328685`;
 `scripts/generic_stress/07_sensitivity_compare.R`). That series is a 4-day
@@ -148,13 +152,15 @@ A gene is **generic** if:
 - measured in ≥ 3 of 4 classes
 - ≥ 80% of those classes agree on sign
 
-Current pan-cell list after QC drops: **894 genes (534 up, 360 down)**; Jaccard vs the
-1,344 freeze is 0.57 (810 shared). Dropping GSE328685 as a sensitivity gives
-882 genes (Jaccard 0.95 vs primary, 0 sign flips). The stricter both-species
-list is empty after the QC drops: mouse hypoxia and mouse DNA damage each
-have only two GSE, so a mouse-only four-class HMP is not identified.
-Fibroblast-only HMP on the same pool is **668 genes (283 up, 385 down)**;
-Jaccard vs pan-cell is 0.04 (57 shared).
+Current pan-cell list after adding GSE66286: **960 genes (566 up, 394 down)**;
+Jaccard vs the 1,344 freeze is 0.56 (830 shared). Dropping GSE328685 as a
+sensitivity was run on the list before GSE119775 and gave 882 genes
+(Jaccard 0.95 vs that list, 0 sign flips). Mouse hypoxia is three series
+(GSE328685, GSE282023, GSE119775). Mouse DNA damage is three series
+(GSE262772, GSE281390, GSE66286), so the mouse HMP uses all four classes.
+The both-species list is **51 genes (26 up, 25 down)**. Fibroblast-only
+HMP on the same pool is **771 genes (331 up, 440 down)**; Jaccard vs
+pan-cell is 0.06 (96 shared).
 
 This is not “genes that move in every stressor.” Class-restricted landmarks
 (HSPA1A/B, HIF1A, HMOX1, VEGFA, FASN) fail the HMP / sign-agreement rule
@@ -170,6 +176,13 @@ process (min size 15, max 400). Table:
 `results/mammalian_generic_stress/cell_meta_gsea_hallmark_reactome_gobp.csv`.
 Locked figure `public_pathways` plots the three collections in one ranking (shape =
 collection); redundant cell-cycle GO terms are collapsed for display.
+
+On the current list, the Hallmark sets that pass are p53, hypoxia, TNF-α
+signaling via NF-κB, and apoptosis (up), and mitotic spindle, G2/M checkpoint,
+and E2F targets (down). The strongest Reactome signals are translation up and
+mitosis down. Hallmark glycolysis and sterol biosynthesis do not pass.
+Hypoxia, glycolysis, and sterol biosynthesis do pass in the separate
+enrichment of the FH experiment genes called in at least five species.
 
 ---
 

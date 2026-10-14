@@ -127,10 +127,11 @@ pw <- bind_rows(
   mutate(
     collection = factor(collection, levels = c("Hallmark", "Reactome", "GO BP")),
     stars = get_sig_star(padj),
+    pretty = str_to_sentence(tolower(gsub("_", " ", sub("^(HALLMARK|REACTOME|GOBP)_", "", name)))),
     axis = if_else(
-      duplicated(name) | duplicated(name, fromLast = TRUE),
-      paste0(name, " · ", collection),
-      name
+      duplicated(pretty) | duplicated(pretty, fromLast = TRUE),
+      paste0(pretty, " · ", collection),
+      pretty
     ),
     axis = str_wrap(axis, 42)
   ) %>%
@@ -148,13 +149,13 @@ p_pw <- ggplot(pw, aes(NES, axis)) +
   scale_shape_manual(values = c(Hallmark = 21, Reactome = 22, `GO BP` = 23),
                      name = NULL) +
   labs(
-    title = "Public generic CSR: hypoxia / glycolysis up, sterol biosynthesis down",
-    subtitle = "Hallmark, Reactome, and GO BP combined. Redundant cell-cycle terms collapsed.",
+    title = "p53, hypoxia, and translation up; mitosis down",
+    subtitle = "Public generic list. Hallmark glycolysis and sterol biosynthesis do not pass.",
     x = "NES", y = NULL, caption = sig_caption
   ) +
   theme_pub(12) +
   theme(legend.position = "bottom")
-save_png(p_pw, "public_pathways.png", 8.4, 8.8)
+save_png(p_pw, "public_pathways.png", 10.2, 8.8)
 
 # -----------------------------------------------------------------------------
 # Shared gene universe

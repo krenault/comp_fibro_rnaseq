@@ -200,8 +200,10 @@ geo_disc <- tribble(
   "GSE197536_NIH3T3_H2O2_2h_vs_ctrl.csv", "mouse_GSE197536_H2O2_2h", "oxidative", "mouse",
   "GSE197536_NIH3T3_H2O2_7h_vs_ctrl.csv", "mouse_GSE197536_H2O2_7h", "oxidative", "mouse",
   "GSE281390_NIH3T3_UVA_vs_ctrl.csv", "mouse_GSE281390_UVA", "dna_damage", "mouse",
+  "GSE66286_NIH3T3_UVC_6h_vs_ctrl.csv", "mouse_GSE66286_UVC", "dna_damage", "mouse",
   "GSE328685_tendon_fibroblast_hypoxia_vs_normoxia.csv", "mouse_GSE328685_hyp", "hypoxia", "mouse",
   "GSE282023_immortalized_fibroblast_hypoxia_vs_normoxia.csv", "mouse_GSE282023_hyp", "hypoxia", "mouse",
+  "GSE119775_MEF_WT_hypoxia_vs_normoxia.csv", "mouse_GSE119775_hyp", "hypoxia", "mouse",
   "GSE281533_human_hypoxia_vs_normoxia.csv", "human_GSE281533_hyp", "hypoxia", "human",
   "GSE139963_human_hypoxia_vs_PBS.csv", "human_GSE139963_hyp", "hypoxia", "human",
   "GSE262772_human_HDF_20Gy_vs_Con_24h.csv", "human_GSE262772_20Gy", "dna_damage", "human"
@@ -240,7 +242,7 @@ geo_long <- rbindlist(lapply(seq_len(nrow(geo_disc)), function(i) {
   if (grepl("author_DESeq|log2abund_n1|log2FPKM|log2RPKM|log2Cuff|DESeq2_normalized", meth)) {
     out[, se := se * 1.5]
   }
-  if (r$dataset_id %in% c("mouse_GSE205381_hyp", "mouse_GSE205381_ox", "mouse_GSE66286_UVC")) {
+  if (r$dataset_id %in% c("mouse_GSE205381_hyp", "mouse_GSE205381_ox")) {
     out[, se := se * 1.5]
   }
   out[, `:=`(

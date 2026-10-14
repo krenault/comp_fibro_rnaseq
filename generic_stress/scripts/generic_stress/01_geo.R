@@ -148,21 +148,57 @@ run_one("GSE281390 NIH3T3 UVA (FPKM)", {
   write_hum(res, map, "GSE281390_NIH3T3_UVA_vs_ctrl", "dna_damage", "UVA_10Jcm2_vs_ctrl", "log2FPKM_LFC")
 })
 
-# -----------------------------------------------------------------------------
-run_one("GSE66286 NIH3T3 UVC (author DESeq)", {
-  f <- download_geo_suppl("GSE66286", "GSE66286_DESeq_0h-6h_UV.csv.gz", RAW)
-  d <- read_tsv(f, show_col_types = FALSE)
-  message("cols: ", paste(names(d), collapse = ", "))
-  gene_col <- intersect(c("id", "gene", "Gene", "gene_id"), names(d))[1]
-  lfc_col <- intersect(c("log2FoldChange", "log2FC", "logFC"), names(d))[1]
-  padj_col <- intersect(c("padj", "FDR", "adj.P.Val"), names(d))[1]
-  res <- tibble(
-    gene_raw = strip(d[[gene_col]]),
-    log2FoldChange = as.numeric(d[[lfc_col]]),
-    padj = if (!is.na(padj_col)) as.numeric(d[[padj_col]]) else NA_real_
-  ) %>% filter(is.finite(log2FoldChange))
+# Per-sample counts (symbol, count). The series-level DESeq file is significant
+# genes only and is not used.
+run_one("GSE66286 NIH3T3 UVC (counts)", {
+  specs <- tibble::tribble(
+    ~gsm, ~file, ~sample, ~group,
+    "GSM1618725", "GSM1618725_0h_R1.txt.gz", "ctrl_1", "control",
+    "GSM1618726", "GSM1618726_0h_R2.txt.gz", "ctrl_2", "control",
+    "GSM1618727", "GSM1618727_0h_R3.txt.gz", "ctrl_3", "control",
+    "GSM1618728", "GSM1618728_6h_UV_R1.txt.gz", "uv_1", "uv",
+    "GSM1618729", "GSM1618729_6h_UV_R2.txt.gz", "uv_2", "uv",
+    "GSM1618730", "GSM1618730_6h_UV_R3.txt.gz", "uv_3", "uv"
+  )
+  dest_dir <- file.path(RAW, "GSE66286_counts")
+  dir.create(dest_dir, recursive = TRUE, showWarnings = FALSE)
+  cols <- lapply(seq_len(nrow(specs)), function(i) {
+    gsm <- specs$gsm[i]
+    fn <- specs$file[i]
+    n <- as.integer(sub("^GSM", "", gsm))
+    url <- sprintf(
+      "https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM%dnnn/%s/suppl/%s",
+      n %/% 1000L, gsm, fn
+    )
+    dest <- file.path(dest_dir, fn)
+    if (!file.exists(dest) || file.info(dest)$size < 100) {
+      message("Downloading ", url)
+      utils::download.file(url, dest, mode = "wb", quiet = TRUE)
+    }
+    d <- read_tsv(dest, col_names = c("gene_id", "count"), col_types = "cd",
+                  show_col_types = FALSE)
+    # Keep symbols intact. strip() is for Ensembl versions and would merge
+    # Epb4.1 with Epb4.2 (and the H2-M10 family) before the join.
+    d$gene_id <- as.character(d$gene_id)
+    agg <- tapply(d$count, d$gene_id, sum)
+    tibble(gene_id = names(agg), !!specs$sample[i] := as.numeric(agg))
+  })
+  mat_df <- Reduce(function(a, b) full_join(a, b, by = "gene_id"), cols)
+  mat <- as.matrix(mat_df[, -1, drop = FALSE])
+  mode(mat) <- "numeric"
+  mat[!is.finite(mat)] <- 0
+  mat <- round(mat)
+  rownames(mat) <- mat_df$gene_id
+  group <- specs$group[match(colnames(mat), specs$sample)]
+  if (sum(group == "uv") != 3L || sum(group == "control") != 3L) {
+    stop("UVC groups: ", paste(colnames(mat), group, sep = "=", collapse = ", "))
+  }
+  res <- run_deseq_pair(mat, group, "uv")
   map <- map_mouse_ids_to_ensg(res$gene_raw)
-  write_hum(res, map, "GSE66286_NIH3T3_UVC_6h_vs_ctrl", "dna_damage", "UVC_80Jm2_6h_vs_ctrl", "author_DESeq")
+  write_hum(
+    res, map, "GSE66286_NIH3T3_UVC_6h_vs_ctrl",
+    "dna_damage", "UVC_80Jm2_6h_vs_ctrl", "DESeq2"
+  )
 })
 
 # -----------------------------------------------------------------------------
@@ -294,5 +330,45 @@ run_one("GSE282023 WT immortalized fibroblast hypoxia (normalized counts)", {
   )
 })
 
+# -----------------------------------------------------------------------------
+# WT MEFs, 1% vs 20% O2. Drop the tafazzin-knockout arm (TAZH / TAZN).
+# Per-sample geneCounts live in GSE119775_RAW.tar (no header; ENSMUSG, count).
+run_one("GSE119775 WT MEF hypoxia (counts)", {
+  tarf <- download_geo_suppl("GSE119775", "GSE119775_RAW.tar", RAW)
+  ex <- file.path(RAW, "GSE119775_raw")
+  if (!dir.exists(ex)) {
+    dir.create(ex, recursive = TRUE)
+    utils::untar(tarf, exdir = ex)
+  }
+  files <- list.files(ex, pattern = "geneCounts\\.txt\\.gz$", full.names = TRUE, recursive = TRUE)
+  wt <- files[grepl("_WT[HN][123]_", basename(files))]
+  if (length(wt) != 6L) {
+    stop("expected 6 WT count files, found ", length(wt), ": ",
+         paste(basename(files), collapse = ", "))
+  }
+  cols <- lapply(wt, function(f) {
+    d <- read_tsv(f, col_names = c("gene_id", "count"), col_types = "cd",
+                  show_col_types = FALSE)
+    nm <- sub(".*_(WT[HN][123])_.*", "\\1", basename(f))
+    tibble(gene_id = strip(d$gene_id), !!nm := d$count)
+  })
+  mat_df <- Reduce(function(a, b) full_join(a, b, by = "gene_id"), cols)
+  mat <- as.matrix(mat_df[, -1, drop = FALSE])
+  mode(mat) <- "numeric"
+  mat[!is.finite(mat)] <- 0
+  mat <- round(mat)
+  rownames(mat) <- mat_df$gene_id
+  group <- ifelse(grepl("^WTH", colnames(mat)), "hypoxia", "control")
+  if (sum(group == "hypoxia") != 3L || sum(group == "control") != 3L) {
+    stop("WT groups: ", paste(colnames(mat), group, sep = "=", collapse = ", "))
+  }
+  res <- run_deseq_pair(mat, group, "hypoxia")
+  map <- map_mouse_ids_to_ensg(res$gene_raw)
+  write_hum(
+    res, map, "GSE119775_MEF_WT_hypoxia_vs_normoxia",
+    "hypoxia", "WT_1pct_vs_20pct", "DESeq2"
+  )
+})
+
 cat("\nDone. New mouse files:\n")
-print(list.files(OUT, pattern = "GSE(215293|243284|197536|281390|66286|114086|171871|205381|328685|282023)"))
+print(list.files(OUT, pattern = "GSE(215293|243284|197536|281390|66286|114086|171871|205381|328685|282023|119775)"))
