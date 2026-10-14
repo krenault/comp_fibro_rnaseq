@@ -18,8 +18,7 @@ signature and which do not.
 ## 1. Design
 
 Public discovery and the FH experiments are independent experiments. FH experiment libraries are
-never used to define the generic list. Glucose is never an FH experiment comparison.
-Rousette is dropped (no temperature or hypoxia files). In-vivo GEO is not in
+never used to define the generic list. Glucose is never an FH experiment comparison. In-vivo GEO is not in
 discovery.
 
 The public panel has heat and hypoxia as *classes*. FH experiment heat or hypoxia
@@ -34,18 +33,14 @@ GEO is mapped to human one-to-one orthologs before meta-analysis.
 
 ## 2. FH experiment query (held out)
 
-Cultured dermal fibroblasts from 13 mammals; 12 species after dropping
-rousette (human, gelada, rat, 13-lined ground squirrel, little brown bat,
-honey badger, seal, dolphin, whale, rhino, dromedary camel, bactrian camel).
+Cultured dermal fibroblasts from 12 mammals: human, gelada, rat, 13-lined ground squirrel, little brown bat,
+honey badger, seal, dolphin, whale, rhino, dromedary camel, bactrian camel.
 DESeq2 pairwise, design `~ individual + treatment`, human one-to-one
 orthologs. Contrasts used here:
 
 - heat: 41°C vs 37°C
 - cold: 32°C vs 37°C
 - hypoxia: 6 h and 24 h vs 0 h
-
-Glucose (2.5 mM and 30 mM vs 8 mM) is excluded from every FH experiment axis in this
-analysis. Files: `drive_dge/` (48 non-glucose, non-rousette contrasts).
 
 ---
 
@@ -231,8 +226,6 @@ are run as two tests, not as substitutes for each other:
 - heat + cold + 6 h hypoxia → `drive_species_hmp_heat_cold_6h.csv`
 - genes that pass both, in the same direction → `drive_species_hmp_both_durations.csv`
 
-Glucose dropped. Rousette dropped. A missing 24 h row is left missing.
-
 A gene is a species cross-perturbation hit if BH HMP < 0.05, ≥ 3 arms
 measured, and ≥ 80% sign agreement. The *p*-values combined here are that
 species' own DESeq2 *p*-values, not the public class mixed models. BH is
@@ -245,45 +238,9 @@ species call the gene, and require ≥ 80% of those calls to share direction.
 Headline conserved core: **≥ 5 species**. Over-representation
 (`fgsea::fora`) of the both-durations core, split up/down, uses Hallmark +
 Reactome + GO BP with universe = genes tested in either species HMP.
-
 ---
 
-## 10. Figures
-
-`plots/mammalian_generic_stress/`
-
-| File | Question |
-|------|----------|
-| discovery_classes | What is in public discovery? |
-| public_pathways | Pathways of the pan-cell generic list |
-| gene_universe | Gene-universe overlap with the FH experiments |
-| conserved_overlap | Conserved FH experiment genes: generic vs residual |
-| holdout_scorecard | FH experiments vs class-held-out public up-genes. Strip (colour) = which public classes enter that HMP set: heat vs hypoxia+H2O2+UV; hypoxia vs heat+H2O2+UV; cold vs all four (includes heat) |
-| unmatched_ox_dna_scorecard | Same H2O2+UV gene set scored on every FH experiment exposure |
-| cold_forest | GSEA NES of FH experiment cold vs the public generic-up genes |
-| human_vs_others_holdout_nes | GSEA NES of each FH experiment contrast vs the held-out public generic-up set; human vs the other 11 mammals |
-| reml_celltype_overlap | Jaccard of alternative generic lists vs the pan-cell generic list |
-| volcano_<species> | FH experiment volcano per species. Labels = DESeq2 padj < 0.05 AND public generic |
-| species_hmp_vs_public | Numerator = genes in the public generic list; denominator = that species' heat+cold+hypoxia HMP list |
-| species_hmp_conserved_ora | ORA of the ≥5-species core |
-
-House style: `theme_pub`, `treatment_colors`, blue–white–red.
-
----
-
-## 11. What this analysis does not do
-
-- The FH experiments are not used to discover the generic list.
-- Glucose is not an FH experiment comparison.
-- In-vivo GEO is not in discovery.
-- The primary signature is not fibroblast-only.
-- Vote / median-z is not the paper method.
-- Adding more same-class GEO, or pulling in ER stress, would rewrite the
-  generic list; that is a new analysis, not a sensitivity of this one.
-
----
-
-## 12. How to run
+## 10. How to run
 
 ```bash
 # Skip ingest if ASTRA + extra GEO are already on disk
