@@ -1,6 +1,6 @@
 # comp_fibro_rnaseq
 
-Reproducible RNA-seq count prep and DESeq2 for a multi-species fibroblast culture panel (glucose / temperature / hypoxia), plus the public generic cell-stress signature scored on the FH experiments.
+RNA-seq count prep and DESeq2 for a multi-species fibroblast culture panel (glucose / temperature / hypoxia), plus the public generic cell-stress signature scored on the FH experiments.
 
 **DGE pipeline:** StringTie GTFs → official `prepDE.py` → one-to-one human ortholog (ENSG) counts → pairwise DESeq2.
 
