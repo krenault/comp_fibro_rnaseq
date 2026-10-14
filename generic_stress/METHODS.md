@@ -225,19 +225,17 @@ are run as two tests, not as substitutes for each other:
 - heat + cold + 24 h hypoxia → `drive_species_hmp_heat_cold_24h.csv`
 - heat + cold + 6 h hypoxia → `drive_species_hmp_heat_cold_6h.csv`
 - genes that pass both, in the same direction → `drive_species_hmp_both_durations.csv`
-
+**
 A gene is a species cross-perturbation hit if BH HMP < 0.05, ≥ 3 arms
 measured, and ≥ 80% sign agreement. The *p*-values combined here are that
 species' own DESeq2 *p*-values, not the public class mixed models. BH is
 done separately inside each species. With three arms, 80% sign agreement
-means all three signs match.
-
-Conservation of those hits across the 12 species in the FH experiments is computed for each
+means all three signs match. Conservation of those hits across the 12 species in the FH experiments is computed for each
 duration test and for the genes that pass both. Count how many
 species call the gene, and require ≥ 80% of those calls to share direction.
 Headline conserved core: **≥ 5 species**. Over-representation
 (`fgsea::fora`) of the both-durations core, split up/down, uses Hallmark +
-Reactome + GO BP with universe = genes tested in either species HMP.
+Reactome + GO BP with universe = genes tested in either species HMP.**
 ---
 
 ## 10. How to run
